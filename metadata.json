@@ -1,0 +1,6 @@
+{
+  "name": "Agenda Médica & Turnos",
+  "description": "Sistema de gestión de turnos para Estética Láser Rosario con duraciones parametrizadas, detección de solapamientos, impresión de agenda diaria, plantillas personalizadas de WhatsApp y exportación a Excel/CSV.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
