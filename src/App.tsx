@@ -467,6 +467,7 @@ function AdminApp() {
         onQuickBackup={handleQuickBackup}
         onOpenImportExcel={() => setIsImportModalOpen(true)}
         pendingRemindersCount={pendingRemindersToday}
+        holidays={holidays}
       />
 
       {/* Main Content Area - with bottom padding for mobile navigation */}
