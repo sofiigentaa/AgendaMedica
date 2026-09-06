@@ -13,7 +13,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import EsteticaLaserLogo from './EsteticaLaserLogo';
-import { getNextWorkingDay, getPrevWorkingDay, getTodayDateString } from '../utils/storage';
+import { getNextWorkingDay, getPrevWorkingDay, getTodayDateString, isClinicWorkingDay, getHolidayInfo, getDayOfWeekName } from '../utils/storage';
+import { HolidayOrNonWorkingDay } from '../types';
 
 interface NavbarProps {
   currentDate: string;
@@ -26,6 +27,7 @@ interface NavbarProps {
   onQuickBackup?: () => void;
   onOpenImportExcel?: () => void;
   pendingRemindersCount: number;
+  holidays?: HolidayOrNonWorkingDay[];
 }
 
 export default function Navbar({
@@ -37,9 +39,11 @@ export default function Navbar({
   onOpenNewPatient,
   onDownloadCsv,
   onOpenImportExcel,
-  pendingRemindersCount
+  pendingRemindersCount,
+  holidays = []
 }: NavbarProps) {
   const [timeString, setTimeString] = useState('');
+  const [dateWarning, setDateWarning] = useState<string | null>(null);
   const headerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -92,6 +96,26 @@ export default function Navbar({
     onDateChange(getTodayDateString());
   };
 
+  // Bloquea la selección directa de un día que el consultorio no atiende
+  // (feriado o día de la semana sin atención) desde el selector de fecha.
+  const handleDateInputChange = (value: string) => {
+    if (!value) return;
+    const holidayInfo = getHolidayInfo(value, holidays);
+    const isWorking = isClinicWorkingDay(value);
+    if (holidayInfo || !isWorking) {
+      const dayName = getDayOfWeekName(value);
+      setDateWarning(
+        holidayInfo
+          ? `⛔ ${value.split('-').reverse().join('/')} es un día no laborable: ${holidayInfo.reason}`
+          : `⛔ ${dayName ? dayName : 'Ese día'}: el consultorio no atiende (solo Lunes, Martes y Viernes).`
+      );
+      window.setTimeout(() => setDateWarning(null), 4500);
+      return;
+    }
+    setDateWarning(null);
+    onDateChange(value);
+  };
+
   return (
     <header ref={headerRef} className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
       {/* Top bar: Branding, Date Picker & Quick Actions */}
@@ -135,7 +159,7 @@ export default function Navbar({
               id="input-current-date"
               type="date"
               value={currentDate}
-              onChange={(e) => e.target.value && onDateChange(e.target.value)}
+              onChange={(e) => e.target.value && handleDateInputChange(e.target.value)}
               className="bg-slate-900 border border-slate-700 text-slate-100 text-xs sm:text-xs font-bold px-3 py-2 sm:py-1 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer font-mono text-center flex-1 sm:flex-initial"
             />
 
@@ -184,6 +208,15 @@ export default function Navbar({
           </div>
         </div>
       </div>
+
+      {/* Aviso cuando se intenta elegir un día que el consultorio no atiende */}
+      {dateWarning && (
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 pb-2">
+          <div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-bold px-3 py-2 rounded-xl text-center">
+            {dateWarning}
+          </div>
+        </div>
+      )}
 
       {/* Navigation Tabs on desktop */}
       <div className="hidden md:block max-w-7xl mx-auto px-2 sm:px-6 border-t border-slate-800/80 overflow-x-auto">
