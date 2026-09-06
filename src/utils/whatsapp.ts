@@ -30,10 +30,12 @@ export function cleanPhoneNumber(phone?: string): string {
   return clean;
 }
 
+export const CANCEL_RESCHEDULE_PHONE = '+5493413516134';
+
 export function generateAppointmentReminder(
   appt: Appointment,
   clinicName: string = 'Estética Láser Rosario',
-  clinicAddress: string = 'Rosario, Santa Fe'
+  clinicAddress: string = 'Alvear 816 - Planta baja'
 ): ReminderPayload {
   const patientName = appt.pacienteNombre || 'Paciente';
   const treatmentName = appt.tratamientoNombre || 'Consulta Médica';
@@ -63,6 +65,7 @@ ${confirmLink ? confirmLink : 'Por favor responder "CONFIRMO"'}
 
 👉 *Si necesitás cancelar o reprogramar:*
 ${cancelLink ? cancelLink : 'Por favor avisanos con anticipación'}
+Contactate al ${CANCEL_RESCHEDULE_PHONE}
 
 ¡Muchas gracias!
 *${clinicName}*`;
@@ -83,7 +86,7 @@ Le recordamos su próximo turno en ${clinicName}:
 Indicaciones de preparación:
 ${treatment.prepInstructions || 'No requiere preparación previa.'}
 
-En caso de no poder asistir, le solicitamos comunicarse para reprogramar el turno.
+En caso de no poder asistir, le solicitamos comunicarse para cancelar o reprogramar el turno al ${CANCEL_RESCHEDULE_PHONE}.
 
 Atentamente,
 Equipo Médico - ${clinicName}`;

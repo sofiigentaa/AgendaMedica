@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CheckCircle2, XCircle, CalendarClock } from 'lucide-react';
+import { CheckCircle2, XCircle, CalendarClock, Home } from 'lucide-react';
 import {
   Patient,
   Appointment,
@@ -50,6 +50,29 @@ function PatientActionScreen({
   appointment: Appointment | null;
 }) {
   const isConfirm = type === 'confirm';
+
+  // BUG-23: en iPhone y en Android, window.close() no funciona sobre una
+  // pestaña que abrió el propio navegador (al tocar el link de WhatsApp), así
+  // que "Ya podés cerrar esta ventana" dejaba a la persona en una pantalla
+  // muerta sin salida. En su lugar, redirigimos automáticamente a la página
+  // principal de la agenda (con un botón para hacerlo al toque también).
+  const [secondsLeft, setSecondsLeft] = useState(5);
+
+  const goToHome = () => {
+    const homeUrl = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '/';
+    window.location.href = homeUrl;
+  };
+
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      goToHome();
+      return;
+    }
+    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft]);
+
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-xl border border-slate-200 w-full max-w-sm p-8 text-center space-y-4">
@@ -80,7 +103,18 @@ function PatientActionScreen({
           </div>
         )}
 
-        <p className="text-[11px] text-slate-400 pt-2">Ya podés cerrar esta ventana.</p>
+        <button
+          type="button"
+          onClick={goToHome}
+          className="w-full bg-gradient-to-r from-teal-600 to-sky-600 hover:from-teal-700 hover:to-sky-700 text-white text-sm font-bold px-4 py-3 rounded-2xl shadow-md shadow-teal-500/20 flex items-center justify-center gap-2 transition-all"
+        >
+          <Home className="w-4 h-4" />
+          <span>Ir al inicio</span>
+        </button>
+
+        <p className="text-[11px] text-slate-400 pt-1">
+          Te vamos a redirigir a la página principal en {secondsLeft} segundo{secondsLeft === 1 ? '' : 's'}...
+        </p>
       </div>
     </div>
   );
@@ -308,6 +342,10 @@ function AdminApp() {
 
   // Patient CRUD Handlers
   const handleSavePatient = (patient: Patient) => {
+    // Si patientToEdit es null, estamos registrando un paciente nuevo (no
+    // editando uno existente).
+    const isNewPatient = !patientToEdit;
+
     setPatients((prev) => {
       const exists = prev.some((p) => p.id === patient.id);
       if (exists) {
@@ -315,6 +353,16 @@ function AdminApp() {
       }
       return [...prev, patient];
     });
+
+    // Al registrar un paciente nuevo, pasamos directamente a cargarle un
+    // turno (evita tener que volver a buscarlo en el padrón).
+    if (isNewPatient) {
+      setPatientToEdit(null);
+      setAppointmentToEdit(null);
+      setIsBlockedSlotMode(false);
+      setPreSelectedPatientId(patient.id);
+      setIsAppointmentModalOpen(true);
+    }
   };
 
   const handleDeletePatient = (id: string) => {

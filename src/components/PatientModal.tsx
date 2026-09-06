@@ -85,6 +85,8 @@ export default function PatientModal({
     setCoberturaPreset(preset);
     if (preset === 'particular') {
       setObraSocial('Particular');
+      // El paciente Particular no tiene N° de credencial/afiliado.
+      setNumeroAfiliado('');
     } else if (preset === 'la_segunda') {
       setObraSocial('La Segunda');
     } else {
@@ -175,7 +177,7 @@ export default function PatientModal({
       fechaNacimiento,
       coberturaTipo: finalObraSocial === 'Particular' ? 'particular' : 'obra_social',
       obraSocial: finalObraSocial,
-      numeroAfiliado: numeroAfiliado.trim(),
+      numeroAfiliado: coberturaPreset === 'particular' ? '' : numeroAfiliado.trim(),
       notasMedicas: notasMedicas.trim(),
       createdAt: patientToEdit ? patientToEdit.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -399,18 +401,20 @@ export default function PatientModal({
                 )}
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  N° de Credencial / Afiliado
-                </label>
-                <input
-                  type="text"
-                  placeholder={coberturaPreset === 'particular' ? 'No aplica (opcional)' : 'Ej. SM-90238411-01'}
-                  value={numeroAfiliado}
-                  onChange={(e) => setNumeroAfiliado(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                />
-              </div>
+              {coberturaPreset !== 'particular' && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    N° de Credencial / Afiliado
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. SM-90238411-01"
+                    value={numeroAfiliado}
+                    onChange={(e) => setNumeroAfiliado(e.target.value)}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

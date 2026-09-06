@@ -15,10 +15,12 @@ import {
   FileSpreadsheet,
   Upload,
   ArrowDownAZ,
-  Undo2
+  Undo2,
+  History
 } from 'lucide-react';
 import { Patient, Appointment } from '../types';
 import ConfirmModal from './ConfirmModal';
+import PatientHistoryModal from './PatientHistoryModal';
 
 interface PatientManagerProps {
   patients: Patient[];
@@ -61,6 +63,7 @@ export default function PatientManager({
   const [insuranceFilter, setInsuranceFilter] = useState('all');
   const [patientToDelete, setPatientToDelete] = useState<Patient | null>(null);
   const [sortAlphabetically, setSortAlphabetically] = useState(false);
+  const [patientForHistory, setPatientForHistory] = useState<Patient | null>(null);
 
   const distinctInsurances = useMemo(() => {
     const set = new Set<string>();
@@ -131,7 +134,8 @@ export default function PatientManager({
         </div>
       )}
 
-      {/* Header */}
+      {/* Header: queda fija (sticky) debajo del Navbar mientras se scrolea el padrón */}
+      <div className="sticky top-[var(--nav-height,0px)] z-20 bg-slate-100/95 backdrop-blur-xs pt-1 pb-1 space-y-3 -mx-1 px-1">
       <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -215,6 +219,7 @@ export default function PatientManager({
             </select>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Patient Cards Grid */}
@@ -337,14 +342,25 @@ export default function PatientManager({
                 </div>
 
                 {/* Bottom Actions */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <button
-                    onClick={() => onBookAppointmentForPatient(patient)}
-                    className="text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
-                  >
-                    <CalendarPlus className="w-3.5 h-3.5" />
-                    <span>Dar Turno</span>
-                  </button>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => onBookAppointmentForPatient(patient)}
+                      className="text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                    >
+                      <CalendarPlus className="w-3.5 h-3.5" />
+                      <span>Dar Turno</span>
+                    </button>
+
+                    <button
+                      onClick={() => setPatientForHistory(patient)}
+                      className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                      title="Ver historial de turnos y motivos del paciente"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      <span>Historial de Turnos</span>
+                    </button>
+                  </div>
 
                   <div className="flex items-center gap-1">
                     <button
@@ -390,6 +406,14 @@ export default function PatientManager({
           }
         }}
         onCancel={() => setPatientToDelete(null)}
+      />
+
+      {/* Historial de Turnos del Paciente */}
+      <PatientHistoryModal
+        isOpen={!!patientForHistory}
+        onClose={() => setPatientForHistory(null)}
+        patient={patientForHistory}
+        appointments={appointments}
       />
     </div>
   );
