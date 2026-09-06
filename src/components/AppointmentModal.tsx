@@ -60,6 +60,13 @@ export default function AppointmentModal({
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const [horaInicioTouched, setHoraInicioTouched] = useState(false);
+  const [fechaBlockedWarning, setFechaBlockedWarning] = useState<string | null>(null);
+
+  const resolveNumeroAfiliado = (obraSocialValue: string, rawNumeroAfiliado?: string) => {
+    const safeIns = (obraSocialValue || 'Particular').toLowerCase();
+    if (safeIns.includes('particular') || safeIns.includes('sin cobertura')) return '';
+    return rawNumeroAfiliado || '';
+  };
 
   const applyCoverageFromValue = (insValue: string) => {
     const safeIns = insValue || 'Particular';
@@ -67,6 +74,7 @@ export default function AppointmentModal({
     if (safeIns.toLowerCase().includes('particular') || safeIns.toLowerCase().includes('sin cobertura')) {
       setCoberturaPreset('particular');
       setCoberturaTipo('particular');
+      setNumeroAfiliado('');
     } else if (safeIns.toLowerCase().includes('segunda')) {
       setCoberturaPreset('la_segunda');
       setCoberturaTipo('obra_social');
@@ -81,6 +89,7 @@ export default function AppointmentModal({
     if (preset === 'particular') {
       setObraSocial('Particular');
       setCoberturaTipo('particular');
+      setNumeroAfiliado('');
     } else if (preset === 'la_segunda') {
       setObraSocial('La Segunda');
       setCoberturaTipo('obra_social');
@@ -105,7 +114,7 @@ export default function AppointmentModal({
       setHoraFin(appointmentToEdit.horaFin);
       setCoberturaTipo(appointmentToEdit.coberturaTipo);
       applyCoverageFromValue(appointmentToEdit.obraSocial);
-      setNumeroAfiliado(appointmentToEdit.numeroAfiliado || '');
+      setNumeroAfiliado(resolveNumeroAfiliado(appointmentToEdit.obraSocial, appointmentToEdit.numeroAfiliado));
       setHonorarios(appointmentToEdit.honorarios);
       setEstado(appointmentToEdit.estado || 'confirmado');
       setEstadoPago(appointmentToEdit.estadoPago);
@@ -150,7 +159,7 @@ export default function AppointmentModal({
           if (preSelected) {
             setPacienteId(preSelected.id);
             applyCoverageFromValue(preSelected.obraSocial);
-            setNumeroAfiliado(preSelected.numeroAfiliado || '');
+            setNumeroAfiliado(resolveNumeroAfiliado(preSelected.obraSocial, preSelected.numeroAfiliado));
           } else {
             setPacienteId('');
             applyCoverageFromValue('Particular');
@@ -172,7 +181,7 @@ export default function AppointmentModal({
     const selectedPat = patients.find((p) => p.id === pId);
     if (selectedPat) {
       applyCoverageFromValue(selectedPat.obraSocial);
-      setNumeroAfiliado(selectedPat.numeroAfiliado || '');
+      setNumeroAfiliado(resolveNumeroAfiliado(selectedPat.obraSocial, selectedPat.numeroAfiliado));
     }
   };
 
@@ -219,6 +228,31 @@ export default function AppointmentModal({
     setHoraFin(calculateEndTime(horaInicio, t.durationMinutes));
     // Set recommended fee
     setHonorarios(t.defaultFee);
+  };
+
+  // Bloquea elegir directamente, desde el campo Fecha, un día feriado o un
+  // día de la semana en que el consultorio no atiende. Si el día no es
+  // válido, no se actualiza "fecha" (el campo vuelve al valor anterior) y se
+  // muestra un aviso breve explicando el motivo.
+  const handleFechaChange = (value: string) => {
+    if (!value) {
+      setFecha(value);
+      return;
+    }
+    const candidateHoliday = getHolidayInfo(value, holidays);
+    const candidateIsWorking = isClinicWorkingDay(value);
+    if (candidateHoliday || !candidateIsWorking) {
+      const candidateDayName = getDayOfWeekName(value);
+      setFechaBlockedWarning(
+        candidateHoliday
+          ? `⛔ Día no laborable: ${candidateHoliday.reason}`
+          : `⛔ ${candidateDayName ? candidateDayName.toUpperCase() : 'Ese día'}: el consultorio no atiende (Lunes, Martes y Viernes).`
+      );
+      window.setTimeout(() => setFechaBlockedWarning(null), 4500);
+      return;
+    }
+    setFechaBlockedWarning(null);
+    setFecha(value);
   };
 
   // When start time changes, re-calc end time
@@ -380,7 +414,7 @@ export default function AppointmentModal({
       ...patientSnapshot,
       coberturaTipo: finalObraSocial === 'Particular' ? 'particular' : 'obra_social',
       obraSocial: finalObraSocial,
-      numeroAfiliado,
+      numeroAfiliado: resolveNumeroAfiliado(finalObraSocial, numeroAfiliado),
       fecha,
       horaInicio,
       tratamientoId: tratamientoId || 'consulta',
@@ -718,10 +752,13 @@ export default function AppointmentModal({
                     <input
                       type="date"
                       value={fecha}
-                      onChange={(e) => setFecha(e.target.value)}
+                      onChange={(e) => handleFechaChange(e.target.value)}
                       required
                       className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
                     />
+                    {fechaBlockedWarning && (
+                      <p className="text-[11px] font-bold text-rose-600 mt-1">{fechaBlockedWarning}</p>
+                    )}
                   </div>
 
                   <div>
@@ -897,10 +934,13 @@ export default function AppointmentModal({
                       id="input-appointment-date"
                       type="date"
                       value={fecha}
-                      onChange={(e) => setFecha(e.target.value)}
+                      onChange={(e) => handleFechaChange(e.target.value)}
                       required
                       className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
                     />
+                    {fechaBlockedWarning && (
+                      <p className="text-[11px] font-bold text-rose-600 mt-1">{fechaBlockedWarning}</p>
+                    )}
                   </div>
 
                   <div>
@@ -1032,18 +1072,20 @@ export default function AppointmentModal({
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      N° de Afiliado / Credencial
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={coberturaPreset === 'particular' ? 'No aplica (opcional)' : 'Ej. SM-90238411 (opcional)'}
-                      value={numeroAfiliado}
-                      onChange={(e) => setNumeroAfiliado(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                    />
-                  </div>
+                  {coberturaPreset !== 'particular' && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        N° de Afiliado / Credencial
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. SM-90238411 (opcional)"
+                        value={numeroAfiliado}
+                        onChange={(e) => setNumeroAfiliado(e.target.value)}
+                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
