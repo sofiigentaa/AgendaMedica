@@ -52,7 +52,7 @@ export function generateAppointmentReminder(
 
 Te recordamos tu turno médico en *${clinicName}*:
 📅 *Fecha:* ${prettyDate}
-⏰ *Horario:* ${appt.horaInicio || ''} hs a ${appt.horaFin || ''} hs (${appt.duracionMinutos || 15} minutos)
+⏰ *Horario:* ${appt.horaInicio || ''} hs
 🩺 *Tratamiento:* ${treatmentName}
 🏥 *Cobertura:* ${appt.obraSocial || 'Particular'}
 📍 *Dirección:* ${clinicAddress}
@@ -63,9 +63,10 @@ _${treatment.prepInstructions || 'No requiere preparación previa.'}_
 👉 *Para confirmar tu asistencia, respondé este mensaje con "CONFIRMO" o hacé clic aquí:*
 ${confirmLink ? confirmLink : 'Por favor responder "CONFIRMO"'}
 
-👉 *Si necesitás cancelar o reprogramar:*
+👉 *Si necesitás cancelar:*
 ${cancelLink ? cancelLink : 'Por favor avisanos con anticipación'}
-Contactate al ${CANCEL_RESCHEDULE_PHONE}
+
+👉 *Si deseás reprogramar un nuevo turno, contactate al ${CANCEL_RESCHEDULE_PHONE}*
 
 ¡Muchas gracias!
 *${clinicName}*`;
@@ -78,7 +79,7 @@ Contactate al ${CANCEL_RESCHEDULE_PHONE}
 
 Le recordamos su próximo turno en ${clinicName}:
 - Fecha: ${prettyDate}
-- Horario: ${appt.horaInicio || ''} a ${appt.horaFin || ''} hs (Duración: ${appt.duracionMinutos || 15} min)
+- Horario: ${appt.horaInicio || ''} hs
 - Tratamiento: ${treatmentName}
 - Cobertura: ${appt.obraSocial || 'Particular'}
 - Dirección: ${clinicAddress}
