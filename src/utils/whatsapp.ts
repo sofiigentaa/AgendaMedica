@@ -57,9 +57,6 @@ Te recordamos tu turno médico en *${clinicName}*:
 🏥 *Cobertura:* ${appt.obraSocial || 'Particular'}
 📍 *Dirección:* ${clinicAddress}
 
-ℹ️ *Indicaciones previas:*
-_${treatment.prepInstructions || 'No requiere preparación previa.'}_
-
 👉 *Para confirmar tu asistencia, respondé este mensaje con "CONFIRMO" o hacé clic aquí:*
 ${confirmLink ? confirmLink : 'Por favor responder "CONFIRMO"'}
 
@@ -83,9 +80,6 @@ Le recordamos su próximo turno en ${clinicName}:
 - Tratamiento: ${treatmentName}
 - Cobertura: ${appt.obraSocial || 'Particular'}
 - Dirección: ${clinicAddress}
-
-Indicaciones de preparación:
-${treatment.prepInstructions || 'No requiere preparación previa.'}
 
 En caso de no poder asistir, le solicitamos comunicarse para cancelar o reprogramar el turno al ${CANCEL_RESCHEDULE_PHONE}.
 
