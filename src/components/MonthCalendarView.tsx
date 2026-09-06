@@ -324,17 +324,32 @@ export default function MonthCalendarView({
               .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
             const isSelected = dateStr === currentDate;
             const isToday = dateStr === todayStr;
+            // Un día feriado o fuera del horario de atención queda bloqueado:
+            // no se puede "abrir" haciendo clic en la celda.
+            const isBlockedDay = Boolean(holiday) || !isWorking;
 
             return (
               <div
                 key={dateStr}
-                onClick={() => onSelectDate(dateStr)}
-                className={`min-h-[95px] sm:min-h-[140px] p-1.5 sm:p-2.5 transition-colors relative flex flex-col justify-between group cursor-pointer ${
+                onClick={() => {
+                  if (isBlockedDay) return;
+                  onSelectDate(dateStr);
+                }}
+                title={
+                  isBlockedDay
+                    ? holiday
+                      ? `Día no laborable: ${holiday.reason}`
+                      : 'El consultorio no atiende este día'
+                    : undefined
+                }
+                className={`min-h-[95px] sm:min-h-[140px] p-1.5 sm:p-2.5 transition-colors relative flex flex-col justify-between group ${
+                  isBlockedDay ? 'cursor-not-allowed' : 'cursor-pointer'
+                } ${
                   holiday
-                    ? 'bg-rose-50/60 hover:bg-rose-50/90'
+                    ? 'bg-rose-50/60'
                     : isWorking
                     ? 'bg-white hover:bg-teal-50/20'
-                    : 'bg-slate-50/50 hover:bg-slate-100/50'
+                    : 'bg-slate-100/70 opacity-70'
                 } ${isSelected ? 'ring-2 ring-teal-500 ring-inset z-10 bg-teal-50/10' : ''}`}
               >
                 {/* Day Header */}
