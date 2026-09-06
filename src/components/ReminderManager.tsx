@@ -55,11 +55,22 @@ export default function ReminderManager({
   nextDateObj.setDate(nextDateObj.getDate() + 1);
   const nextDateStr = `${nextDateObj.getFullYear()}-${String(nextDateObj.getMonth() + 1).padStart(2, '0')}-${String(nextDateObj.getDate()).padStart(2, '0')}`;
 
-  const [targetDate, setTargetDate] = useState<string>(currentDate);
+  // Por defecto se muestran los turnos de TODAS las fechas (no solo el día
+  // actual). La persona puede acotar a "Hoy" o "Mañana" si quiere.
+  const [dateMode, setDateMode] = useState<'todas' | 'hoy' | 'manana'>('todas');
 
   const targetAppointments = appointments
-    .filter((a) => a.fecha === targetDate && !a.esBloqueo && a.tratamientoId !== 'no_dar')
-    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+    .filter((a) => !a.esBloqueo && a.tratamientoId !== 'no_dar')
+    .filter((a) => {
+      if (dateMode === 'todas') return true;
+      if (dateMode === 'hoy') return a.fecha === currentDate;
+      return a.fecha === nextDateStr;
+    })
+    .sort((a, b) => {
+      const dateCompare = a.fecha.localeCompare(b.fecha);
+      if (dateCompare !== 0) return dateCompare;
+      return a.horaInicio.localeCompare(b.horaInicio);
+    });
 
   const activeTargetAppointments = targetAppointments.filter((a) => a.estado !== 'cancelado');
   const cancelledAppointments = targetAppointments.filter((a) => a.estado === 'cancelado');
@@ -91,7 +102,7 @@ export default function ReminderManager({
 
     if (pendingIds.length === 0) {
       setSimulationNotification({
-        message: 'No hay recordatorios pendientes para esta fecha.',
+        message: 'No hay recordatorios pendientes con el filtro actual.',
         type: 'info'
       });
       return;
@@ -191,9 +202,19 @@ export default function ReminderManager({
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
-              onClick={() => setTargetDate(currentDate)}
+              onClick={() => setDateMode('todas')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                targetDate === currentDate
+                dateMode === 'todas'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Todas las Fechas
+            </button>
+            <button
+              onClick={() => setDateMode('hoy')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                dateMode === 'hoy'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -201,9 +222,9 @@ export default function ReminderManager({
               Turnos de Hoy ({formatDatePretty(currentDate).split(',')[0]})
             </button>
             <button
-              onClick={() => setTargetDate(nextDateStr)}
+              onClick={() => setDateMode('manana')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                targetDate === nextDateStr
+                dateMode === 'manana'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -280,10 +301,10 @@ export default function ReminderManager({
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-bold text-slate-800">
-            No hay turnos con el filtro seleccionado para esta fecha
+            No hay turnos con el filtro seleccionado
           </h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Seleccioná otra fecha o cambiá el filtro para ver los turnos.
+            Cambiá el filtro de fecha o de estado para ver los turnos.
           </p>
         </div>
       ) : (
@@ -337,6 +358,10 @@ export default function ReminderManager({
                       </div>
                       <div className="text-xs text-slate-500 font-medium">
                         Cel: <strong className="text-slate-800">{appt.pacienteTelefono}</strong> • DNI: {appt.pacienteDni}
+                      </div>
+                      <div className="text-[11px] text-teal-700 font-bold flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3" />
+                        {formatDatePretty(appt.fecha)}
                       </div>
                     </div>
 
