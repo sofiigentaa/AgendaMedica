@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Clock, User, DollarSign, Shield, FileText, CheckCircle, Sparkles, AlertTriangle, Phone, Ban, Info, Check, Trash2 } from 'lucide-react';
 import { Appointment, Patient, TreatmentType, PaymentStatus, PaymentMethod, AppointmentStatus, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS, INSURANCES, INSURANCE_SUGGESTIONS, calculateEndTime, getTreatmentById, formatCurrency, STATUS_LABELS } from '../data/treatments';
-import { isClinicWorkingDay, getHolidayInfo, getDayOfWeekName, formatDatePretty, getTodayDateString } from '../utils/storage';
+import { isClinicWorkingDay, getHolidayInfo, getDayOfWeekName, formatDatePretty, getTodayDateString, CLINIC_WORKING_HOURS } from '../utils/storage';
 import ConfirmModal from './ConfirmModal';
 
 interface AppointmentModalProps {
@@ -275,12 +275,22 @@ export default function AppointmentModal({
   const horaInicioFormatoInvalido = horaInicio.length > 0 && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaInicio);
   const horaInicioSoloHoraSinMinutos = horaInicio.length > 0 && /^([01]?\d|2[0-3])$/.test(horaInicio.trim());
 
+  // El consultorio atiende de 14:30 a 20:00 hs. Si el horario elegido (o el
+  // horario de fin calculado según la duración del tratamiento) cae fuera de
+  // esa franja, se bloquea el guardado igual que con un día no laborable.
+  const horarioFueraDeRango =
+    !isBlockedMode &&
+    horaInicio.length > 0 &&
+    !horaInicioFormatoInvalido &&
+    (horaInicio < CLINIC_WORKING_HOURS.start || (horaFin && horaFin > CLINIC_WORKING_HOURS.end));
+
   // List of missing/invalid required fields for the non-blocked appointment form,
   // used to show the person exactly what's stopping "Agendar Turno" from working.
   const missingFieldLabels: string[] = [];
   if (!fecha) missingFieldLabels.push('Fecha');
   if (!horaInicio) missingFieldLabels.push('Hora de Inicio');
   else if (horaInicioFormatoInvalido) missingFieldLabels.push('Hora de Inicio (formato HH:MM, ej: 15:00)');
+  else if (horarioFueraDeRango) missingFieldLabels.push(`Hora de Inicio (debe ser entre ${CLINIC_WORKING_HOURS.label})`);
   if (!tratamientoId) missingFieldLabels.push('Tratamiento Médico');
   if (honorarios === '') missingFieldLabels.push('Honorarios');
   // BUG-04: "Estado del Turno" ya no es un campo obligatorio a elegir al
@@ -561,6 +571,19 @@ export default function AppointmentModal({
                 <div className="font-black text-rose-950 text-sm">⛔ FECHA ATRASADA</div>
                 <div className="mt-0.5 text-rose-800">
                   No se pueden crear turnos con una fecha anterior a hoy. Elegí una fecha desde hoy en adelante.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Horario fuera del rango de atención (14:30 a 20:00 hs). */}
+          {horarioFueraDeRango && (
+            <div className="bg-rose-50 border-2 border-rose-400 rounded-xl p-3.5 flex items-start gap-3 text-rose-900 shadow-xs">
+              <Ban className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-black text-rose-950 text-sm">⛔ HORARIO FUERA DE ATENCIÓN</div>
+                <div className="mt-0.5 text-rose-800">
+                  El consultorio atiende de {CLINIC_WORKING_HOURS.label}. Elegí un horario de inicio dentro de esa franja para poder guardar el turno.
                 </div>
               </div>
             </div>
@@ -1267,14 +1290,14 @@ export default function AppointmentModal({
               <button
                 type="submit"
                 id="btn-save-appointment"
-                disabled={!isBlockedMode && (isPastDate || isBlockedDay || hasScheduleConflict)}
+                disabled={!isBlockedMode && (isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict)}
                 title={
-                  !isBlockedMode && (isPastDate || isBlockedDay || hasScheduleConflict)
+                  !isBlockedMode && (isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict)
                     ? 'Corregí la fecha u horario para poder guardar el turno'
                     : undefined
                 }
                 className={`text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all transform active:scale-95 text-white ${
-                  !isBlockedMode && (isPastDate || isBlockedDay || hasScheduleConflict)
+                  !isBlockedMode && (isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict)
                     ? 'bg-slate-300 cursor-not-allowed shadow-none'
                     : isBlockedMode
                     ? 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/30 cursor-pointer'
