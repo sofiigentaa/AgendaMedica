@@ -1,7 +1,8 @@
-import { X, History, CalendarClock, Clock, Stethoscope, DollarSign } from 'lucide-react';
+import { X, History, CalendarClock, Clock, Stethoscope, DollarSign, Shield, MessageCircle } from 'lucide-react';
 import { Patient, Appointment } from '../types';
 import { STATUS_LABELS, formatCurrency } from '../data/treatments';
 import { formatDatePretty } from '../utils/storage';
+import { generateAppointmentReminder } from '../utils/whatsapp';
 
 interface PatientHistoryModalProps {
   isOpen: boolean;
@@ -106,6 +107,14 @@ export default function PatientHistoryModal({
                     <span>{appt.tratamientoNombre || 'Sin especificar'}</span>
                   </div>
 
+                  <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                    <Shield className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span className="font-semibold">Cobertura:</span>
+                    <span>
+                      {appt.coberturaTipo === 'particular' ? 'Particular' : appt.obraSocial || 'Obra Social'}
+                    </span>
+                  </div>
+
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
                     <span className="flex items-center gap-1">
                       <DollarSign className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -114,6 +123,19 @@ export default function PatientHistoryModal({
                     {appt.observaciones && (
                       <span className="truncate max-w-[60%] italic">{appt.observaciones}</span>
                     )}
+                  </div>
+
+                  {/* Recordatorio por WhatsApp para este turno puntual */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <a
+                      href={generateAppointmentReminder(appt).whatsappLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>Recordatorio WhatsApp</span>
+                    </a>
                   </div>
                 </div>
               );
