@@ -486,55 +486,6 @@ export default function AppointmentModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Mode Selector Tabs (Turno Paciente vs Bloquear Horario NO DAR) */}
-        {!appointmentToEdit && (
-          <div className="bg-slate-100 p-1.5 border-b border-slate-200 flex items-center justify-center gap-2 shrink-0">
-            <button
-              type="button"
-              id="tab-mode-patient"
-              onClick={() => {
-                setIsBlockedMode(false);
-                setTratamientoId('consulta');
-                setDuracionMinutos(15);
-                setHoraFin('');
-                setHonorarios(15000);
-                // BUG-11: no autoseleccionar el primer paciente del padrón.
-                setPacienteId('');
-              }}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                !isBlockedMode
-                  ? 'bg-white text-teal-900 shadow-xs border border-teal-200/80'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <User className="w-4 h-4 text-teal-600" />
-              <span>Turno de Paciente</span>
-            </button>
-
-            <button
-              type="button"
-              id="tab-mode-block"
-              onClick={() => {
-                setIsBlockedMode(true);
-                setTratamientoId('no_dar');
-                setDuracionMinutos(30);
-                setHoraFin(calculateEndTime(horaInicio, 30));
-                setHonorarios(0);
-                setObservaciones('No dar turno');
-              }}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                isBlockedMode
-                  ? 'bg-slate-900 text-amber-300 shadow-xs border border-slate-700'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <Ban className="w-4 h-4 text-rose-500" />
-              <span>⛔ Bloquear Horario (NO DAR)</span>
-            </button>
-          </div>
-        )}
-
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           {/* Holiday or Non-Working Day Warning Banner */}
