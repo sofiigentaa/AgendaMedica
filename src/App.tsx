@@ -151,6 +151,8 @@ function PatientOnlyActionRoute({ type, id }: { type: 'confirm' | 'cancel'; id: 
         ...target,
         estado: (type === 'confirm' ? 'confirmado' : 'cancelado') as AppointmentStatus,
         recordatorioEnviado: type === 'confirm' ? true : target.recordatorioEnviado,
+        respuestaPacienteTipo: type === 'confirm' ? 'confirmado' : 'cancelado',
+        respuestaPacienteAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       saveAppointments(allAppointments.map((a) => (a.id === id ? updated : a)));
