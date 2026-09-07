@@ -151,6 +151,8 @@ function PatientOnlyActionRoute({ type, id }: { type: 'confirm' | 'cancel'; id: 
         ...target,
         estado: (type === 'confirm' ? 'confirmado' : 'cancelado') as AppointmentStatus,
         recordatorioEnviado: type === 'confirm' ? true : target.recordatorioEnviado,
+        // RF-07 / RF-09: constancia de la respuesta real del paciente, que
+        // se muestra luego en PatientHistoryModal.
         respuestaPacienteTipo: type === 'confirm' ? 'confirmado' : 'cancelado',
         respuestaPacienteAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -176,7 +178,7 @@ function AdminApp() {
   const [appointments, setAppointments] = useState<Appointment[]>(() => loadAppointments());
   const [holidays, setHolidays] = useState<HolidayOrNonWorkingDay[]>(() => loadHolidays());
   const [currentDate, setCurrentDate] = useState<string>(() => getTodayDateString());
-  const [activeTab, setActiveTab] = useState<'agenda' | 'finanzas' | 'pacientes' | 'recordatorios' | 'backups'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'finanzas' | 'pacientes' | 'backups'>('agenda');
 
   // Modals state
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
@@ -218,6 +220,15 @@ function AdminApp() {
   useEffect(() => {
     saveHolidays(holidays);
   }, [holidays]);
+
+  // RF-14: el toast de notificación (ej. "Se restablecieron los datos de
+  // demostración") se cierra solo a los pocos segundos, además de poder
+  // cerrarse manualmente con el botón "Cerrar".
+  useEffect(() => {
+    if (!adminNotification) return;
+    const timer = setTimeout(() => setAdminNotification(null), 4000);
+    return () => clearTimeout(timer);
+  }, [adminNotification]);
 
   const handleToggleHoliday = (date: string, reason?: string) => {
     setHolidays((prev) => {
@@ -558,16 +569,6 @@ function AdminApp() {
             lastImportBatch={lastImportBatch}
             onDismissImportBanner={handleDismissImportBanner}
             onUndoLastImport={handleUndoLastImport}
-          />
-        )}
-
-        {activeTab === 'recordatorios' && (
-          <ReminderManager
-            currentDate={currentDate}
-            appointments={appointments}
-            onMarkReminderSent={handleMarkReminderSent}
-            onMarkAllRemindersSent={handleMarkAllRemindersSent}
-            onUpdateStatus={handleUpdateStatus}
           />
         )}
 
