@@ -106,8 +106,10 @@ export interface Appointment {
   recordatorioEnviado: boolean;
   ultimoRecordatorioAt?: string;
 
-  // Registro de la respuesta del paciente al confirmar o cancelar su turno
-  // desde el link de WhatsApp. Se muestra en el historial de turnos.
+  // RF-07 / RF-09: registro de la respuesta del PACIENTE al confirmar o
+  // cancelar su propio turno desde el link de WhatsApp (pantalla aislada
+  // PatientActionScreen en App.tsx). Se muestra como mensaje en el
+  // historial de turnos del paciente (PatientHistoryModal.tsx).
   respuestaPacienteTipo?: 'confirmado' | 'cancelado';
   respuestaPacienteAt?: string;
 
