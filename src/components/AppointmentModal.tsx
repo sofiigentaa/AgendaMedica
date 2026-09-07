@@ -1010,6 +1010,18 @@ export default function AppointmentModal({
                   </div>
                 </div>
 
+                {(horarioFueraDeRango || hasScheduleConflict) && (
+                  <div className="bg-rose-50 border border-rose-300 rounded-lg px-3 py-2 flex items-start gap-1.5">
+                    <Ban className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <p className="text-[11px] font-bold text-rose-700">
+                      {horarioFueraDeRango
+                        ? `⛔ Fuera de atención: el consultorio atiende de ${CLINIC_WORKING_HOURS.label}.`
+                        : `⛔ Horario ocupado por ${conflictingAppointments[0]?.esBloqueo || conflictingAppointments[0]?.tratamientoId === 'no_dar'
+                            ? 'un bloqueo (NO DAR)'
+                            : conflictingAppointments[0]?.pacienteNombre || 'otro turno'}. Elegí otro horario.`}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Coverage & Insurance details */}
