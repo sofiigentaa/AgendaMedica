@@ -273,7 +273,7 @@ export default function PatientManager({
                           : 'bg-teal-50 text-teal-800 border-teal-200'
                       }`}
                     >
-                      {patient.coberturaTipo === 'particular' ? 'Particular' : 'Obra Social'}
+                      {patient.coberturaTipo === 'particular' ? 'Particular' : patient.obraSocial || 'Obra Social'}
                     </span>
                   </div>
 
