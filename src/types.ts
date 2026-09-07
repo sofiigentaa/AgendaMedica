@@ -105,7 +105,12 @@ export interface Appointment {
   
   recordatorioEnviado: boolean;
   ultimoRecordatorioAt?: string;
-  
+
+  // Registro de la respuesta del paciente al confirmar o cancelar su turno
+  // desde el link de WhatsApp. Se muestra en el historial de turnos.
+  respuestaPacienteTipo?: 'confirmado' | 'cancelado';
+  respuestaPacienteAt?: string;
+
   observaciones?: string;
   esBloqueo?: boolean;
   createdAt: string;
