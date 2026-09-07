@@ -125,6 +125,31 @@ export default function PatientHistoryModal({
                     )}
                   </div>
 
+                  {/* RF-07 / RF-09: constancia de que el paciente confirmó o
+                      canceló el turno por su cuenta desde el link de WhatsApp */}
+                  {appt.respuestaPacienteTipo && appt.respuestaPacienteAt && (
+                    <div
+                      className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border ${
+                        appt.respuestaPacienteTipo === 'confirmado'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                      }`}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        Paciente {appt.respuestaPacienteTipo === 'confirmado' ? 'confirmó' : 'canceló'} el turno el{' '}
+                        {new Date(appt.respuestaPacienteAt).toLocaleString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}{' '}
+                        hs (vía WhatsApp)
+                      </span>
+                    </div>
+                  )}
+
                   {/* Recordatorio por WhatsApp para este turno puntual */}
                   <div className="pt-2 border-t border-slate-100">
                     <a
