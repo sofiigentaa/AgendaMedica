@@ -19,8 +19,8 @@ import { HolidayOrNonWorkingDay } from '../types';
 interface NavbarProps {
   currentDate: string;
   onDateChange: (newDate: string) => void;
-  activeTab: 'agenda' | 'finanzas' | 'pacientes' | 'recordatorios' | 'backups';
-  onTabChange: (tab: 'agenda' | 'finanzas' | 'pacientes' | 'recordatorios' | 'backups') => void;
+  activeTab: 'agenda' | 'finanzas' | 'pacientes' | 'backups';
+  onTabChange: (tab: 'agenda' | 'finanzas' | 'pacientes' | 'backups') => void;
   onOpenNewAppointment: () => void;
   onOpenNewPatient: () => void;
   onDownloadCsv: () => void;
@@ -258,24 +258,6 @@ export default function Navbar({
           >
             <Users className="w-4 h-4 shrink-0" />
             <span>Padrón de Pacientes</span>
-          </button>
-
-          <button
-            id="tab-recordatorios"
-            onClick={() => onTabChange('recordatorios')}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all relative ${
-              activeTab === 'recordatorios'
-                ? 'bg-teal-500 text-slate-950 font-bold shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <MessageCircle className="w-4 h-4 shrink-0" />
-            <span>Recordatorios WhatsApp</span>
-            {pendingRemindersCount > 0 && (
-              <span className="bg-amber-400 text-slate-950 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
-                {pendingRemindersCount}
-              </span>
-            )}
           </button>
 
           <button
