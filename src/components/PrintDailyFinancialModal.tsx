@@ -12,7 +12,7 @@ import {
 import { Appointment, DailySummary, Patient } from '../types';
 import { formatDatePretty } from '../utils/storage';
 import { formatCurrency } from '../data/treatments';
-import { executePrintDocument } from '../utils/printHelper';
+import { printDailyFinancialReport } from '../utils/printHelper';
 import EsteticaLaserLogo from './EsteticaLaserLogo';
 
 interface PrintDailyFinancialModalProps {
@@ -48,9 +48,12 @@ export default function PrintDailyFinancialModal({
   const totalTarjeta = (summary.porMetodoPago?.debito || 0) + (summary.porMetodoPago?.credito || 0);
 
   const handlePrint = () => {
-    // Generate and execute print document
-    const htmlContent = document.getElementById('printable-financial-content')?.innerHTML || '';
-    executePrintDocument(htmlContent, `Cierre_Caja_${date}`);
+    // RF-12: antes se tomaba el innerHTML de la vista previa (con clases de
+    // Tailwind) y se insertaba en un documento nuevo que NO carga Tailwind.
+    // Al perder todos los estilos, el logo (SVG sin ancho/alto fijo en ese
+    // contexto) se expandía y ocupaba una hoja entera. printDailyFinancialReport
+    // genera su propio HTML con estilos inline autocontenidos y sin logo.
+    printDailyFinancialReport(date, appointments, summary, patients);
   };
 
   return (
