@@ -27,7 +27,6 @@ import Navbar from './components/Navbar';
 import CalendarView from './components/CalendarView';
 import DailyFinancialSummary from './components/DailyFinancialSummary';
 import PatientManager from './components/PatientManager';
-import ReminderManager from './components/ReminderManager';
 import BackupManager from './components/BackupManager';
 import AppointmentModal from './components/AppointmentModal';
 import PatientModal from './components/PatientModal';
