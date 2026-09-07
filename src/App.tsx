@@ -160,8 +160,14 @@ function PatientOnlyActionRoute({ type, id }: { type: 'confirm' | 'cancel'; id: 
       saveAppointments(allAppointments.map((a) => (a.id === id ? updated : a)));
       setAppointment(updated);
     }
-    // Clean the query params from the URL without navigating anywhere else.
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // A propósito NO se limpia el query param (?confirm_turno=/?cancel_turno=)
+    // de la URL acá. Si se lo saca y el navegador (sobre todo el navegador
+    // interno de WhatsApp) vuelve a cargar esta misma pestaña más adelante
+    // -por ejemplo al volver de segundo plano-, la app pierde el contexto de
+    // "esto es una confirmación de turno" y termina mostrando la agenda del
+    // consultorio en su lugar. Dejando el parámetro, cualquier recarga cae
+    // otra vez en esta misma pantalla aislada (repetir confirm/cancel es
+    // inofensivo, solo vuelve a guardar el mismo estado).
   }, [type, id]);
 
   return <PatientActionScreen type={type} appointment={appointment} />;
