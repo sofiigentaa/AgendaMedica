@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CheckCircle2, XCircle, CalendarClock, Home } from 'lucide-react';
+import { CheckCircle2, XCircle, CalendarClock, X } from 'lucide-react';
 import {
   Patient,
   Appointment,
@@ -51,27 +51,29 @@ function PatientActionScreen({
 }) {
   const isConfirm = type === 'confirm';
 
-  // BUG-23: en iPhone y en Android, window.close() no funciona sobre una
-  // pestaña que abrió el propio navegador (al tocar el link de WhatsApp), así
-  // que "Ya podés cerrar esta ventana" dejaba a la persona en una pantalla
-  // muerta sin salida. En su lugar, redirigimos automáticamente a la página
-  // principal de la agenda (con un botón para hacerlo al toque también).
-  const [secondsLeft, setSecondsLeft] = useState(5);
+  // BUG-23 (corregido): en iPhone y en Android, window.close() no funciona
+  // sobre una pestaña que abrió el propio navegador, pero redirigir a
+  // window.location.origin tampoco es correcto acá: esta pantalla es la
+  // única parte de la app que puede ver un PACIENTE, y esa URL "de inicio"
+  // carga la agenda/administración del consultorio. En vez de navegar a
+  // cualquier lado, el botón "Cerrar" intenta cerrar la pestaña y, si el
+  // navegador no lo permite, simplemente oculta el mensaje.
+  const [closed, setClosed] = useState(false);
 
-  const goToHome = () => {
-    const homeUrl = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '/';
-    window.location.href = homeUrl;
+  const handleClose = () => {
+    window.close();
+    // Si seguimos acá, el navegador no permitió cerrar la pestaña (algo
+    // habitual en iPhone/Android): en ese caso, ocultamos el mensaje.
+    setClosed(true);
   };
 
-  useEffect(() => {
-    if (secondsLeft <= 0) {
-      goToHome();
-      return;
-    }
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft]);
+  if (closed) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <p className="text-sm text-slate-500">Ya podés cerrar esta pestaña.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -105,16 +107,12 @@ function PatientActionScreen({
 
         <button
           type="button"
-          onClick={goToHome}
+          onClick={handleClose}
           className="w-full bg-gradient-to-r from-teal-600 to-sky-600 hover:from-teal-700 hover:to-sky-700 text-white text-sm font-bold px-4 py-3 rounded-2xl shadow-md shadow-teal-500/20 flex items-center justify-center gap-2 transition-all"
         >
-          <Home className="w-4 h-4" />
-          <span>Ir al inicio</span>
+          <X className="w-4 h-4" />
+          <span>Cerrar</span>
         </button>
-
-        <p className="text-[11px] text-slate-400 pt-1">
-          Te vamos a redirigir a la página principal en {secondsLeft} segundo{secondsLeft === 1 ? '' : 's'}...
-        </p>
       </div>
     </div>
   );
