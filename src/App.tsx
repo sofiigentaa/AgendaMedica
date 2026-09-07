@@ -51,19 +51,16 @@ function PatientActionScreen({
 }) {
   const isConfirm = type === 'confirm';
 
-  // BUG-23 (corregido): en iPhone y en Android, window.close() no funciona
-  // sobre una pestaña que abrió el propio navegador, pero redirigir a
-  // window.location.origin tampoco es correcto acá: esta pantalla es la
-  // única parte de la app que puede ver un PACIENTE, y esa URL "de inicio"
-  // carga la agenda/administración del consultorio. En vez de navegar a
-  // cualquier lado, el botón "Cerrar" intenta cerrar la pestaña y, si el
-  // navegador no lo permite, simplemente oculta el mensaje.
+  // BUG-23 (corregido, 2da vuelta): esta pantalla es la única parte de la
+  // app que puede ver un PACIENTE. Probamos con window.close() para cerrar
+  // la pestaña sola, pero en el navegador interno de WhatsApp ese llamado
+  // termina "navegando hacia atrás" en vez de cerrar (o no hacer nada), y
+  // eso llevaba al paciente a la agenda del consultorio. Por eso el botón
+  // "Cerrar" ya NO llama a ninguna función del navegador: solo oculta el
+  // mensaje en esta misma pantalla. El paciente cierra la pestaña a mano.
   const [closed, setClosed] = useState(false);
 
   const handleClose = () => {
-    window.close();
-    // Si seguimos acá, el navegador no permitió cerrar la pestaña (algo
-    // habitual en iPhone/Android): en ese caso, ocultamos el mensaje.
     setClosed(true);
   };
 
