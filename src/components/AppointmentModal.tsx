@@ -56,6 +56,10 @@ export default function AppointmentModal({
   // Search filter for patients
   const [patientSearch, setPatientSearch] = useState('');
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  // RF-11: cartel de "¿Está seguro?" cuando se crea un turno nuevo en un día
+  // que ya tiene otros turnos cargados (no bloquea el guardado, solo avisa).
+  const [showSameDayWarning, setShowSameDayWarning] = useState(false);
+  const [pendingAppointment, setPendingAppointment] = useState<Appointment | null>(null);
   const [showPatientRequiredError, setShowPatientRequiredError] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
@@ -135,7 +139,11 @@ export default function AppointmentModal({
       // Excepción: cuando se abre desde "Dar Turno" (paciente preseleccionado
       // desde el Padrón), la fecha se deja vacía para que se elija a mano.
       setFecha(preSelectedPatientId ? '' : selectedDate || '');
-      setHoraInicio('');
+      // RF-01: si el turno se crea tocando un horario libre de la grilla,
+      // ese horario (suggestedTime) se precarga acá. Si se abre desde el
+      // botón genérico "Nuevo Turno" (sin horario sugerido) o desde "Dar
+      // Turno" con paciente preseleccionado, queda vacío para elegirlo a mano.
+      setHoraInicio(!preSelectedPatientId && suggestedTime ? suggestedTime : '');
 
       if (initialIsBlocked) {
         setTratamientoId('no_dar');
@@ -454,7 +462,29 @@ export default function AppointmentModal({
       updatedAt: new Date().toISOString()
     };
 
+    // RF-11: al crear (no al editar) un turno en un día que ya tiene otros
+    // turnos cargados (sin contar bloqueos de agenda), se avisa antes de
+    // confirmar el guardado, por si fue sin querer.
+    const sameDayOtherAppointments = allAppointments.filter(
+      (a) => a.fecha === fecha && a.id !== newAppointment.id && !a.esBloqueo
+    );
+
+    if (!appointmentToEdit && sameDayOtherAppointments.length > 0) {
+      setPendingAppointment(newAppointment);
+      setShowSameDayWarning(true);
+      return;
+    }
+
     onSave(newAppointment);
+    onClose();
+  };
+
+  const confirmSaveDespiteSameDay = () => {
+    if (pendingAppointment) {
+      onSave(pendingAppointment);
+    }
+    setShowSameDayWarning(false);
+    setPendingAppointment(null);
     onClose();
   };
 
@@ -1113,7 +1143,7 @@ export default function AppointmentModal({
                     )}
                   </div>
 
-                  {coberturaPreset !== 'particular' && (
+                  {coberturaPreset !== 'particular' && coberturaPreset !== 'la_segunda' && (
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                         N° de Afiliado / Credencial
@@ -1355,6 +1385,23 @@ export default function AppointmentModal({
           }
         }}
         onCancel={() => setIsConfirmDeleteOpen(false)}
+      />
+
+      {/* RF-11: advertencia de turnos ya cargados ese mismo día */}
+      <ConfirmModal
+        isOpen={showSameDayWarning}
+        title="Ya hay turnos ese día"
+        message={`Ya existen ${
+          allAppointments.filter((a) => a.fecha === fecha && a.id !== pendingAppointment?.id && !a.esBloqueo).length
+        } turno(s) cargado(s) para el ${formatDatePretty(fecha)}. ¿Deseas agendar este turno de todas formas?`}
+        confirmText="Sí, agendar de todas formas"
+        cancelText="Revisar de nuevo"
+        isDestructive={false}
+        onConfirm={confirmSaveDespiteSameDay}
+        onCancel={() => {
+          setShowSameDayWarning(false);
+          setPendingAppointment(null);
+        }}
       />
     </div>
   );
