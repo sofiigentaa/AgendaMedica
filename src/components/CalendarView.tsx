@@ -16,7 +16,6 @@ import {
   Calendar,
   AlertCircle,
   Download,
-  Printer,
   CalendarOff,
   Ban,
   Grid,
@@ -295,18 +294,7 @@ export default function CalendarView({
               )}
             </button>
 
-            {/* Print Agenda Button */}
-            {onOpenPrintModal && (
-              <button
-                id="btn-print-daily-agenda"
-                onClick={onOpenPrintModal}
-                title="Imprimir la hoja de agenda de turnos del día en papel o PDF"
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs transition-all"
-              >
-                <Printer className="w-3.5 h-3.5 text-teal-400" />
-                <span>Imprimir Agenda del Día</span>
-              </button>
-            )}
+            {/* RF-05: se quitó el botón "Imprimir Agenda del Día" / "Imprimir Guardar PDF" a pedido. */}
           </div>
         </div>
 
@@ -722,6 +710,8 @@ export default function CalendarView({
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 : appt.estadoPago === 'facturado'
                                 ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                : appt.estadoPago === 'bonificado'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300'
                                 : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
                             }`}
                           >
@@ -729,6 +719,8 @@ export default function CalendarView({
                               ? `✓ Cobrado (${appt.metodoPago || 'efectivo'})`
                               : appt.estadoPago === 'facturado'
                               ? 'Facturado a OS'
+                              : appt.estadoPago === 'bonificado'
+                              ? 'Bonificado / Sin Cargo'
                               : 'Pendiente de cobro'}
                           </button>
                         </div>
@@ -737,6 +729,9 @@ export default function CalendarView({
 
                     {/* Status Dropdown - Strict 4 Statuses */}
                     <div className="shrink-0">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">
+                        Estado del turno
+                      </div>
                       <select
                         value={appt.estado}
                         onChange={(e) => onUpdateStatus(appt.id, e.target.value as AppointmentStatus)}
@@ -752,29 +747,38 @@ export default function CalendarView({
                     {/* Quick Action buttons */}
                     <div className="flex items-center gap-1.5 ml-auto lg:ml-0">
                       {appt.estado !== 'cancelado' && (
-                        <select
-                          value={appt.estadoPago || 'pendiente'}
-                          onChange={(e) => {
-                            const nextPayment = e.target.value as PaymentStatus;
-                            onUpdatePayment(
-                              appt.id,
-                              nextPayment,
-                              nextPayment === 'pagado' ? appt.metodoPago || 'efectivo' : 'pendiente'
-                            );
-                          }}
-                          title="Cambiar el estado de pago, sin abrir el turno"
-                          className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] shadow-2xs ${
-                            appt.estadoPago === 'pagado'
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : appt.estadoPago === 'facturado'
-                              ? 'bg-sky-100 text-sky-800 border-sky-300'
-                              : 'bg-amber-100 text-amber-800 border-amber-300'
-                          }`}
-                        >
-                          <option value="pendiente">Pendiente de Cobro</option>
-                          <option value="pagado">Pagado</option>
-                          <option value="facturado">Facturado a OS</option>
-                        </select>
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">
+                            Estado de pago
+                          </div>
+                          <select
+                            value={appt.estadoPago || 'pendiente'}
+                            onChange={(e) => {
+                              const nextPayment = e.target.value as PaymentStatus;
+                              onUpdatePayment(
+                                appt.id,
+                                nextPayment,
+                                nextPayment === 'pagado' ? appt.metodoPago || 'efectivo' : 'pendiente'
+                              );
+                            }}
+                            title="Cambiar el estado de pago, sin abrir el turno"
+                            className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] shadow-2xs ${
+                              appt.estadoPago === 'pagado'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : appt.estadoPago === 'facturado'
+                                ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                : appt.estadoPago === 'bonificado'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                : 'bg-amber-100 text-amber-800 border-amber-300'
+                            }`}
+                          >
+                            {/* RF-13: mismas opciones que el formulario de creación de turno (AppointmentModal) */}
+                            <option value="pendiente">Pendiente</option>
+                            <option value="pagado">Pagado / Cobrado</option>
+                            <option value="facturado">Facturado a Obra Social</option>
+                            <option value="bonificado">Bonificado / Sin Cargo</option>
+                          </select>
+                        </div>
                       )}
 
                       {/* WhatsApp Reminder Button */}
