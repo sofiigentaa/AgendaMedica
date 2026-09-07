@@ -102,6 +102,12 @@ export default function AppointmentModal({
   };
 
   useEffect(() => {
+    // El modal queda montado siempre (isOpen solo controla si se muestra),
+    // así que sin este reset el aviso rojo de "campos faltantes" de un
+    // intento de guardado anterior quedaba pegado y aparecía de nuevo apenas
+    // se abría un turno nuevo, aunque todavía no se hubiera tocado nada.
+    setAttemptedSubmit(false);
+
     if (appointmentToEdit) {
       const isBlocked = appointmentToEdit.esBloqueo || appointmentToEdit.tratamientoId === 'no_dar';
       setIsBlockedMode(Boolean(isBlocked));
