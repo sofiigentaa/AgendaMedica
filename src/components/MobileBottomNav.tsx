@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
-  activeTab: 'agenda' | 'finanzas' | 'pacientes' | 'recordatorios' | 'backups';
-  onTabChange: (tab: 'agenda' | 'finanzas' | 'pacientes' | 'recordatorios' | 'backups') => void;
+  activeTab: 'agenda' | 'finanzas' | 'pacientes' | 'backups';
+  onTabChange: (tab: 'agenda' | 'finanzas' | 'pacientes' | 'backups') => void;
   onOpenNewAppointment: () => void;
   pendingRemindersCount: number;
 }
@@ -38,7 +38,7 @@ export default function MobileBottomNav({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMoreMenuOpen]);
 
-  const handleSelectTab = (tab: 'agenda' | 'finanzas' | 'pacientes' | 'recordatorios' | 'backups') => {
+  const handleSelectTab = (tab: 'agenda' | 'finanzas' | 'pacientes' | 'backups') => {
     onTabChange(tab);
     setIsMoreMenuOpen(false);
   };
@@ -163,29 +163,6 @@ export default function MobileBottomNav({
           <DollarSign className="w-5 h-5 mb-0.5" />
           <span className="text-[10px] leading-tight">Finanzas</span>
           {activeTab === 'finanzas' && (
-            <span className="w-1 h-1 bg-teal-400 rounded-full mt-0.5" />
-          )}
-        </button>
-
-        {/* WhatsApp & Recordatorios */}
-        <button
-          onClick={() => handleSelectTab('recordatorios')}
-          className={`flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 px-1 rounded-xl transition-all relative ${
-            activeTab === 'recordatorios'
-              ? 'text-teal-400 font-bold scale-105'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <div className="relative">
-            <MessageCircle className="w-5 h-5 mb-0.5" />
-            {pendingRemindersCount > 0 && (
-              <span className="absolute -top-1 -right-1.5 w-4 h-4 bg-amber-400 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center">
-                {pendingRemindersCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] leading-tight">WhatsApp</span>
-          {activeTab === 'recordatorios' && (
             <span className="w-1 h-1 bg-teal-400 rounded-full mt-0.5" />
           )}
         </button>
