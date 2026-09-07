@@ -277,19 +277,6 @@ export default function PatientManager({
                     </span>
                   </div>
 
-                  {/* Insurance */}
-                  <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1 font-medium text-slate-700">
-                      <Shield className="w-3.5 h-3.5 text-teal-600" />
-                      {patient.coberturaTipo === 'particular' ? 'Particular' : patient.obraSocial}
-                    </span>
-                    {patient.numeroAfiliado && (
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {patient.numeroAfiliado}
-                      </span>
-                    )}
-                  </div>
-
                   {/* Contact info */}
                   <div className="space-y-1 text-xs text-slate-600">
                     <div className="flex items-center justify-between">
