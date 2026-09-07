@@ -21,8 +21,7 @@ import {
   Ban,
   Grid,
   ListFilter,
-  CheckCircle2,
-  XCircle
+  CheckCircle2
 } from 'lucide-react';
 import { Appointment, TreatmentType, AppointmentStatus, PaymentStatus, PaymentMethod, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS, formatCurrency, getTreatmentById, STATUS_LABELS } from '../data/treatments';
@@ -752,25 +751,30 @@ export default function CalendarView({
 
                     {/* Quick Action buttons */}
                     <div className="flex items-center gap-1.5 ml-auto lg:ml-0">
-                      {appt.estado === 'cancelado' ? (
-                        <button
-                          type="button"
-                          onClick={() => onUpdateStatus(appt.id, 'confirmado')}
-                          className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all min-h-[40px] shadow-2xs cursor-pointer flex items-center gap-1"
-                          title="Reactivar y confirmar este turno cancelado"
+                      {appt.estado !== 'cancelado' && (
+                        <select
+                          value={appt.estadoPago || 'pendiente'}
+                          onChange={(e) => {
+                            const nextPayment = e.target.value as PaymentStatus;
+                            onUpdatePayment(
+                              appt.id,
+                              nextPayment,
+                              nextPayment === 'pagado' ? appt.metodoPago || 'efectivo' : 'pendiente'
+                            );
+                          }}
+                          title="Cambiar el estado de pago, sin abrir el turno"
+                          className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] shadow-2xs ${
+                            appt.estadoPago === 'pagado'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : appt.estadoPago === 'facturado'
+                              ? 'bg-sky-100 text-sky-800 border-sky-300'
+                              : 'bg-amber-100 text-amber-800 border-amber-300'
+                          }`}
                         >
-                          ✓ Reactivar Turno
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onUpdateStatus(appt.id, 'cancelado')}
-                          className="px-2.5 py-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-800 text-xs font-bold flex items-center gap-1 transition-all min-h-[40px] shadow-2xs cursor-pointer"
-                          title="Marcar turno como cancelado por el paciente (libera el horario)"
-                        >
-                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                          <span>Canceló</span>
-                        </button>
+                          <option value="pendiente">Pendiente de Cobro</option>
+                          <option value="pagado">Pagado</option>
+                          <option value="facturado">Facturado a OS</option>
+                        </select>
                       )}
 
                       {/* WhatsApp Reminder Button */}
