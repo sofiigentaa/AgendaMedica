@@ -201,6 +201,22 @@ export function calculateEndTime(startTime: string, durationMinutes: number): st
   return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 }
 
+/**
+ * Calculates the duration in minutes between a start time and an end time
+ * (both HH:mm, same day). Returns 0 if either time is invalid or the end
+ * time is not after the start time.
+ */
+export function calculateDurationMinutes(startTime: string, endTime: string): number {
+  if (!startTime || !startTime.includes(':') || !endTime || !endTime.includes(':')) return 0;
+  const [startH, startM] = startTime.split(':').map((v) => parseInt(v, 10));
+  const [endH, endM] = endTime.split(':').map((v) => parseInt(v, 10));
+
+  if ([startH, startM, endH, endM].some((v) => isNaN(v))) return 0;
+
+  const diff = (endH * 60 + endM) - (startH * 60 + startM);
+  return diff > 0 ? diff : 0;
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
