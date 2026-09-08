@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Clock, User, DollarSign, Shield, FileText, CheckCircle, Sparkles, AlertTriangle, Phone, Ban, Info, Check, Trash2 } from 'lucide-react';
 import { Appointment, Patient, TreatmentType, PaymentStatus, PaymentMethod, AppointmentStatus, HolidayOrNonWorkingDay } from '../types';
-import { TREATMENTS, INSURANCES, INSURANCE_SUGGESTIONS, calculateEndTime, getTreatmentById, formatCurrency, STATUS_LABELS } from '../data/treatments';
+import { TREATMENTS, INSURANCES, INSURANCE_SUGGESTIONS, calculateEndTime, calculateDurationMinutes, getTreatmentById, formatCurrency, STATUS_LABELS } from '../data/treatments';
 import { isClinicWorkingDay, getHolidayInfo, getDayOfWeekName, formatDatePretty, getTodayDateString, CLINIC_WORKING_HOURS } from '../utils/storage';
 import ConfirmModal from './ConfirmModal';
 
@@ -64,6 +64,7 @@ export default function AppointmentModal({
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const [horaInicioTouched, setHoraInicioTouched] = useState(false);
+  const [horaFinTouched, setHoraFinTouched] = useState(false);
   const [fechaBlockedWarning, setFechaBlockedWarning] = useState<string | null>(null);
 
   const resolveNumeroAfiliado = (obraSocialValue: string, rawNumeroAfiliado?: string) => {
@@ -116,6 +117,7 @@ export default function AppointmentModal({
       const isBlocked = appointmentToEdit.esBloqueo || appointmentToEdit.tratamientoId === 'no_dar';
       setIsBlockedMode(Boolean(isBlocked));
       setHoraInicioTouched(false);
+      setHoraFinTouched(false);
       setPacienteId(appointmentToEdit.pacienteId);
       setFecha(appointmentToEdit.fecha);
       setHoraInicio(appointmentToEdit.horaInicio);
@@ -134,6 +136,7 @@ export default function AppointmentModal({
     } else {
       setIsBlockedMode(initialIsBlocked);
       setHoraInicioTouched(false);
+      setHoraFinTouched(false);
       // BUG-19 / RF-04: si el turno se crea desde una fecha puntual de la
       // agenda (selectedDate), esa fecha se precarga en vez de dejarla vacía.
       // Excepción: cuando se abre desde "Dar Turno" (paciente preseleccionado
@@ -269,10 +272,27 @@ export default function AppointmentModal({
     setFecha(value);
   };
 
-  // When start time changes, re-calc end time
+  // When start time changes, re-calc end time.
+  // En modo bloqueo, si ya hay una Hora Fin manual válida (rango horario),
+  // se conserva ese horario de fin y se recalcula la duración a partir del
+  // nuevo inicio, en vez de pisar la Hora Fin con la duración vieja.
   const handleStartTimeChange = (newStartTime: string) => {
     setHoraInicio(newStartTime);
-    setHoraFin(calculateEndTime(newStartTime, duracionMinutos));
+    if (isBlockedMode && horaFin && calculateDurationMinutes(newStartTime, horaFin) > 0) {
+      setDuracionMinutos(calculateDurationMinutes(newStartTime, horaFin));
+    } else {
+      setHoraFin(calculateEndTime(newStartTime, duracionMinutos));
+    }
+  };
+
+  // Rango horario del bloqueo: permite elegir directamente la Hora Fin
+  // ("desde-hasta") en vez de depender solo de una duración preseteada.
+  const handleBlockedEndTimeChange = (newEndTime: string) => {
+    setHoraFin(newEndTime);
+    const computedDuration = calculateDurationMinutes(horaInicio, newEndTime);
+    if (computedDuration > 0) {
+      setDuracionMinutos(computedDuration);
+    }
   };
 
   // Conflict / Overlap Detection - find all overlapping appointments
@@ -288,6 +308,17 @@ export default function AppointmentModal({
   // Validate that Hora Inicio has the HH:MM format (hours and minutes)
   const horaInicioFormatoInvalido = horaInicio.length > 0 && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaInicio);
   const horaInicioSoloHoraSinMinutos = horaInicio.length > 0 && /^([01]?\d|2[0-3])$/.test(horaInicio.trim());
+
+  // Validación del rango horario del bloqueo (Hora Fin editable a mano).
+  const horaFinFormatoInvalido =
+    isBlockedMode && horaFin.length > 0 && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaFin);
+  const horaFinNoPosteriorAInicio =
+    isBlockedMode &&
+    !horaFinFormatoInvalido &&
+    !horaInicioFormatoInvalido &&
+    Boolean(horaInicio) &&
+    Boolean(horaFin) &&
+    horaFin <= horaInicio;
 
   // El consultorio atiende de 14:30 a 20:00 hs. Si el horario elegido (o el
   // horario de fin calculado según la duración del tratamiento) cae fuera de
@@ -336,7 +367,15 @@ export default function AppointmentModal({
     setAttemptedSubmit(true);
 
     if (isBlockedMode) {
-      if (horaInicioFormatoInvalido) return;
+      setHoraInicioTouched(true);
+      setHoraFinTouched(true);
+      if (horaInicioFormatoInvalido || horaFinFormatoInvalido || horaFinNoPosteriorAInicio || !horaFin) return;
+
+      // La Hora Fin ingresada por la persona es la fuente de verdad del
+      // rango; la duración se deriva de ahí (en vez de al revés), para que
+      // el bloqueo cubra exactamente el "desde-hasta" elegido.
+      const finalDuracion = calculateDurationMinutes(horaInicio, horaFin);
+
       const blockedAppointment: Appointment = {
         id: appointmentToEdit ? appointmentToEdit.id : `blk-${Date.now()}`,
         pacienteId: 'bloqueo-agenda',
@@ -351,8 +390,8 @@ export default function AppointmentModal({
         horaInicio,
         tratamientoId: 'no_dar',
         tratamientoNombre: '⛔ NO DAR (Horario Bloqueado)',
-        duracionMinutos,
-        horaFin: calculateEndTime(horaInicio, duracionMinutos),
+        duracionMinutos: finalDuracion,
+        horaFin,
         honorarios: 0,
         estado: 'confirmado',
         estadoPago: 'bonificado',
@@ -739,10 +778,10 @@ export default function AppointmentModal({
                   </div>
                 </div>
 
-                {/* Duration Picker for blocking */}
+                {/* Duration Picker for blocking (atajos rápidos, opcional) */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-300 block">
-                    Seleccionar Duración del Bloqueo:
+                    Duración rápida (opcional, también podés elegir "Hasta" abajo):
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {blockedDurationOptions.map((opt) => (
@@ -752,6 +791,7 @@ export default function AppointmentModal({
                         onClick={() => {
                           setDuracionMinutos(opt.minutes);
                           setHoraFin(calculateEndTime(horaInicio, opt.minutes));
+                          setHoraFinTouched(false);
                         }}
                         className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition-all ${
                           duracionMinutos === opt.minutes
@@ -847,16 +887,39 @@ export default function AppointmentModal({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Hora Fin <span className="text-[10px] text-teal-600 font-normal">(Auto-calculada)</span>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Hora Fin (Hasta)</span>
+                      <span className="text-[10px] text-amber-700 font-normal">+{duracionMinutos} min</span>
                     </label>
-                    <div className="w-full text-xs font-bold px-3 py-2 rounded-lg border border-amber-300 bg-amber-50/70 text-amber-950 flex items-center justify-between">
-                      <span>{horaFin ? `${horaFin} hs` : '--'}</span>
-                      <span className="text-[10px] text-amber-800 font-normal">+{duracionMinutos} min</span>
-                    </div>
+                    <input
+                      value={horaFin}
+                      onChange={(e) => handleBlockedEndTimeChange(e.target.value)}
+                      onBlur={() => setHoraFinTouched(true)}
+                      type="text"
+                      placeholder="Ej. 18:00"
+                      required
+                      className={`w-full text-xs font-bold font-mono px-3 py-2 rounded-lg border bg-white text-slate-900 focus:ring-1 focus:outline-none ${
+                        horaFinTouched && (horaFinFormatoInvalido || horaFinNoPosteriorAInicio)
+                          ? 'border-rose-400 focus:ring-rose-500'
+                          : 'border-amber-300 focus:ring-amber-500'
+                      }`}
+                    />
+                    {horaFinTouched && horaFinFormatoInvalido && (
+                      <p className="mt-1 text-[10px] font-semibold text-rose-600">
+                        Ingresá la hora con horas y minutos, ej: 18:00
+                      </p>
+                    )}
+                    {horaFinTouched && !horaFinFormatoInvalido && horaFinNoPosteriorAInicio && (
+                      <p className="mt-1 text-[10px] font-semibold text-rose-600">
+                        La Hora Fin debe ser posterior a la Hora Inicio
+                      </p>
+                    )}
                   </div>
                 </div>
 
+                <p className="text-[11px] text-slate-500">
+                  Tip: escribí directamente el horario de fin para bloquear un rango (ej. de 14:30 a 18:00), o usá los atajos de duración de arriba.
+                </p>
               </div>
             </div>
           ) : (
@@ -1271,6 +1334,22 @@ export default function AppointmentModal({
             </>
           )}
 
+          {/* Validation summary for blocked-mode date range issues */}
+          {isBlockedMode && attemptedSubmit && (horaInicioFormatoInvalido || horaFinFormatoInvalido || horaFinNoPosteriorAInicio || !horaFin) && (
+            <div className="bg-rose-50 border border-rose-300 rounded-xl p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-rose-800">
+                <span className="font-bold">Revisá el rango horario del bloqueo:</span>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  {horaInicioFormatoInvalido && <li>Hora de Inicio (formato HH:MM, ej: 15:00)</li>}
+                  {!horaFin && !horaFinFormatoInvalido && <li>Hora Fin (elegí un horario o una duración rápida)</li>}
+                  {horaFinFormatoInvalido && <li>Hora Fin (formato HH:MM, ej: 18:00)</li>}
+                  {horaFinNoPosteriorAInicio && <li>Hora Fin debe ser posterior a la Hora Inicio</li>}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* Validation summary: shows exactly what's missing when "Agendar Turno" doesn't advance */}
           {!isBlockedMode && attemptedSubmit && missingFieldLabels.length > 0 && (
             <div className="bg-rose-50 border border-rose-300 rounded-xl p-3 flex items-start gap-2">
@@ -1338,17 +1417,27 @@ export default function AppointmentModal({
               <button
                 type="submit"
                 id="btn-save-appointment"
-                disabled={!isBlockedMode && (isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict)}
+                disabled={
+                  isBlockedMode
+                    ? horaInicioFormatoInvalido || horaFinFormatoInvalido || horaFinNoPosteriorAInicio || !horaFin
+                    : isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict
+                }
                 title={
-                  !isBlockedMode && (isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict)
+                  isBlockedMode
+                    ? horaInicioFormatoInvalido || horaFinFormatoInvalido || horaFinNoPosteriorAInicio || !horaFin
+                      ? 'Corregí el rango horario (Hora Inicio / Hora Fin) para poder bloquear'
+                      : undefined
+                    : isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict
                     ? 'Corregí la fecha u horario para poder guardar el turno'
                     : undefined
                 }
                 className={`text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all transform active:scale-95 text-white ${
-                  !isBlockedMode && (isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict)
+                  isBlockedMode
+                    ? horaInicioFormatoInvalido || horaFinFormatoInvalido || horaFinNoPosteriorAInicio || !horaFin
+                      ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                      : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/30 cursor-pointer'
+                    : isPastDate || isBlockedDay || horarioFueraDeRango || hasScheduleConflict
                     ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                    : isBlockedMode
-                    ? 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/30 cursor-pointer'
                     : estado === 'cancelado'
                     ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20 cursor-pointer'
                     : 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20 cursor-pointer'
