@@ -46,6 +46,7 @@ npm run test:all   # ambas suites
 
 - **Unitarios** (`tests/unit/`): cálculo de horarios/duraciones, resumen financiero diario, normalización de teléfonos y generación de recordatorios de WhatsApp, generación de CSV, e importación/parseo de planillas de pacientes (incluye detección de encabezados, celdas combinadas y fechas en distintos formatos).
 - **End-to-end** (`tests/e2e/`, requieren `npx playwright install chromium` una sola vez): alta/edición/borrado de turnos y pacientes, detección de solapamiento de horarios, reglas de negocio (no agendar en día no laborable ni en el pasado), persistencia tras recargar la página, resumen financiero, backup manual y verificación de que la app es usable en mobile sin overflow horizontal.
+- **Casos de prueba manuales**: [`docs/casos-de-prueba-manuales.md`](docs/casos-de-prueba-manuales.md) — checklist para validar la app a mano (demo, smoke test), con la equivalencia de cada caso en la suite automatizada.
 
 ## Build
 
