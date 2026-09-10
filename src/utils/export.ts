@@ -244,6 +244,12 @@ export function exportFullBackupPackage(
   setTimeout(() => {
     triggerFileDownload(csvContent, csvName, 'text/csv;charset=utf-8;');
   }, 400);
+
+  // 3. JSON snapshot (pacientes + turnos + resumen) for restore/demo
+  const jsonPayload = JSON.stringify({ date, appointments, patients, summary, exportedAt: new Date().toISOString() });
+  setTimeout(() => {
+    triggerFileDownload(jsonPayload, jsonName, 'application/json;charset=utf-8;');
+  }, 800);
  
   return {
     excelFileName: excelName,

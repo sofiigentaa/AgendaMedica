@@ -80,6 +80,7 @@ export default function ConfirmModal({
           </button>
           <button
             type="button"
+            data-testid="btn-confirm-modal"
             onClick={() => {
               onConfirm();
             }}

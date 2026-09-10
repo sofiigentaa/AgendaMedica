@@ -3,6 +3,7 @@ import { X, Clock, User, DollarSign, Shield, FileText, CheckCircle, Sparkles, Al
 import { Appointment, Patient, TreatmentType, PaymentStatus, PaymentMethod, AppointmentStatus, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS, INSURANCES, INSURANCE_SUGGESTIONS, calculateEndTime, calculateDurationMinutes, getTreatmentById, formatCurrency, STATUS_LABELS } from '../data/treatments';
 import { isClinicWorkingDay, getHolidayInfo, getDayOfWeekName, formatDatePretty, getTodayDateString, CLINIC_WORKING_HOURS } from '../utils/storage';
+import { findOverlappingAppointments, isOutsideClinicHours, isValidTimeHHmm } from '../utils/schedule';
 import ConfirmModal from './ConfirmModal';
 
 interface AppointmentModalProps {
@@ -296,22 +297,23 @@ export default function AppointmentModal({
   };
 
   // Conflict / Overlap Detection - find all overlapping appointments
-  const conflictingAppointments = allAppointments.filter((a) => {
-    if (a.id === appointmentToEdit?.id) return false;
-    if (a.fecha !== fecha) return false;
-    if (a.estado === 'cancelado') return false;
-    return horaInicio < a.horaFin && horaFin > a.horaInicio;
-  });
+  const conflictingAppointments = findOverlappingAppointments(
+    allAppointments,
+    fecha,
+    horaInicio,
+    horaFin,
+    appointmentToEdit?.id
+  );
 
   const conflictingAppointment = conflictingAppointments[0] || null;
 
   // Validate that Hora Inicio has the HH:MM format (hours and minutes)
-  const horaInicioFormatoInvalido = horaInicio.length > 0 && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaInicio);
+  const horaInicioFormatoInvalido = horaInicio.length > 0 && !isValidTimeHHmm(horaInicio);
   const horaInicioSoloHoraSinMinutos = horaInicio.length > 0 && /^([01]?\d|2[0-3])$/.test(horaInicio.trim());
 
   // Validación del rango horario del bloqueo (Hora Fin editable a mano).
   const horaFinFormatoInvalido =
-    isBlockedMode && horaFin.length > 0 && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(horaFin);
+    isBlockedMode && horaFin.length > 0 && !isValidTimeHHmm(horaFin);
   const horaFinNoPosteriorAInicio =
     isBlockedMode &&
     !horaFinFormatoInvalido &&
@@ -327,7 +329,7 @@ export default function AppointmentModal({
     !isBlockedMode &&
     horaInicio.length > 0 &&
     !horaInicioFormatoInvalido &&
-    (horaInicio < CLINIC_WORKING_HOURS.start || (horaFin && horaFin > CLINIC_WORKING_HOURS.end));
+    isOutsideClinicHours(horaInicio, horaFin, CLINIC_WORKING_HOURS.start, CLINIC_WORKING_HOURS.end);
 
   // List of missing/invalid required fields for the non-blocked appointment form,
   // used to show the person exactly what's stopping "Agendar Turno" from working.
@@ -1027,6 +1029,7 @@ export default function AppointmentModal({
                       <button
                         key={t.id}
                         type="button"
+                        data-testid={`treatment-${t.id}`}
                         onClick={() => handleTreatmentChange(t.id)}
                         className={`flex items-start justify-between p-2.5 rounded-xl border text-left transition-all ${
                           isSelected
