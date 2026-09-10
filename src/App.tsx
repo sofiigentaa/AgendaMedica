@@ -230,21 +230,38 @@ function AdminApp() {
     return () => clearTimeout(timer);
   }, [adminNotification]);
 
-  const handleToggleHoliday = (date: string, reason?: string) => {
+  const handleToggleHoliday = (
+    date: string,
+    reason?: string,
+    type?: HolidayOrNonWorkingDay['type']
+  ) => {
     setHolidays((prev) => {
-      const exists = prev.some((h) => h.date === date);
-      if (exists) {
+      const exists = prev.find((h) => h.date === date);
+      const trimmedReason = (reason || '').trim();
+
+      // Explicit removal: called with an empty reason (the "Quitar Feriado"
+      // button in both calendar views uses this convention).
+      if (!trimmedReason) {
         return prev.filter((h) => h.date !== date);
-      } else {
-        const newHoliday: HolidayOrNonWorkingDay = {
-          id: `hol-${Date.now()}`,
-          date,
-          reason: reason || 'Feriado / Día no laborable',
-          type: 'feriado',
-          createdAt: new Date().toISOString()
-        };
-        return [...prev, newHoliday];
       }
+
+      // A different reason/type was entered for a day that's already marked
+      // as a holiday: update it in place instead of dropping the mark
+      // entirely (previously any edit here silently un-marked the day).
+      if (exists) {
+        return prev.map((h) =>
+          h.date === date ? { ...h, reason: trimmedReason, type: type || h.type } : h
+        );
+      }
+
+      const newHoliday: HolidayOrNonWorkingDay = {
+        id: `hol-${Date.now()}`,
+        date,
+        reason: trimmedReason,
+        type: type || 'feriado',
+        createdAt: new Date().toISOString()
+      };
+      return [...prev, newHoliday];
     });
   };
 

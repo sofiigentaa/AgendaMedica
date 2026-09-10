@@ -41,7 +41,7 @@ interface CalendarViewProps {
   onSelectDate: (date: string) => void;
   appointments: Appointment[];
   holidays: HolidayOrNonWorkingDay[];
-  onToggleHoliday: (date: string, reason?: string) => void;
+  onToggleHoliday: (date: string, reason?: string, type?: HolidayOrNonWorkingDay['type']) => void;
   onOpenNewAppointment: (suggestedTime?: string) => void;
   onOpenBlockSlot?: (suggestedTime?: string) => void;
   onEditAppointment: (appointment: Appointment) => void;
@@ -101,7 +101,7 @@ export default function CalendarView({
   };
 
   const handleSaveHoliday = () => {
-    onToggleHoliday(currentDate, holidayModalReason.trim() || 'Feriado / Día no laborable');
+    onToggleHoliday(currentDate, holidayModalReason.trim() || 'Feriado / Día no laborable', holidayModalType);
     setIsHolidayModalOpen(false);
   };
 
