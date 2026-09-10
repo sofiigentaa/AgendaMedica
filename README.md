@@ -77,7 +77,7 @@ npm run db:seed      # carga el set de datos de ejemplo (pacientes/turnos/feriad
 npm run db:studio    # explorador visual de la base (Prisma Studio)
 ```
 
-El esquema vive en [`prisma/schema.prisma`](prisma/schema.prisma). Cada paciente/turno/feriado se guarda y actualiza como un registro individual (no un "array completo" reemplazado entero), para que dos dispositivos editando cosas distintas al mismo tiempo no se pisen entre sí.
+El esquema de desarrollo/tests (SQLite) vive en [`prisma/schema.prisma`](prisma/schema.prisma); el de producción (PostgreSQL) en [`prisma/production/schema.prisma`](prisma/production/schema.prisma) — son dos archivos porque Prisma no permite elegir el motor por variable de entorno (ver [`DEPLOY.md`](DEPLOY.md) para el detalle). Cada paciente/turno/feriado se guarda y actualiza como un registro individual (no un "array completo" reemplazado entero), para que dos dispositivos editando cosas distintas al mismo tiempo no se pisen entre sí.
 
 ## Deploy
 

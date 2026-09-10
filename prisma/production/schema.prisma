@@ -1,16 +1,17 @@
-// Prisma schema for Agenda Médica — LOCAL DEVELOPMENT & TESTS (SQLite,
-// zero setup). Production uses prisma/production/schema.prisma
-// (PostgreSQL) instead — see DEPLOY.md. Prisma can't switch a schema's
-// datasource `provider` via an env var, so these are two separate schema
-// files (each with its own sibling `migrations/` folder) kept in sync by
-// hand; the models below must match prisma/production/schema.prisma exactly.
+// Prisma schema for Agenda Médica — PRODUCTION (PostgreSQL). Local
+// development & tests use prisma/schema.prisma (SQLite) instead — see
+// DEPLOY.md. Keep the models below in sync with ../schema.prisma by hand;
+// Prisma can't switch a schema's datasource `provider` via an env var, so
+// these have to be two separate files. Migrations for this schema live in
+// the sibling ./migrations/ folder (Prisma resolves migrations relative to
+// the schema file's own directory).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -46,8 +47,8 @@ model Appointment {
   pacienteEmail          String   @default("")
   pacienteFechaNacimiento String  @default("")
   coberturaTipo          String
-  obraSocial             String
-  numeroAfiliado         String   @default("")
+  obraSocial              String
+  numeroAfiliado          String  @default("")
 
   fecha           String
   horaInicio      String
