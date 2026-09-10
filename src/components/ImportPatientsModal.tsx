@@ -22,7 +22,7 @@ import {
 interface ImportPatientsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportCompleted: (importedPatients: Patient[]) => void;
+  onImportCompleted: (importedPatients: Patient[]) => void | Promise<void>;
   existingPatientsCount: number;
 }
 

@@ -15,6 +15,7 @@ test.describe('Holiday / non-working day marking', () => {
     await resetAppState(page);
     freeDate = freeWorkingDayDateString();
     await goToDate(page, freeDate);
+    await expect(page.locator('#input-current-date')).toHaveValue(freeDate);
   });
 
   test('marks a day as a holiday with a custom reason', async ({ page }) => {
@@ -48,15 +49,17 @@ test.describe('Holiday / non-working day marking', () => {
     // this is the exact scenario that used to un-mark the day entirely.
     await expect(page.getByText('DÍA FERIADO / NO LABORABLE: Vacaciones Médicas')).toBeVisible();
 
-    // And it must survive in localStorage (real persistence, not just React
-    // state). Read it directly instead of navigating the date input back to
-    // freeDate after reload — the app correctly refuses to *type* your way
-    // onto a day that's marked as a holiday (Navbar's own date-field guard),
-    // so re-driving that same input here would just be fighting that rule.
-    const holidaysRaw = await page.evaluate(() => localStorage.getItem('agenda_medica_holidays_v1'));
-    const holidays = JSON.parse(holidaysRaw || '[]');
-    const saved = holidays.find((h: { date: string }) => h.date === freeDate);
-    expect(saved?.reason).toBe('Vacaciones Médicas');
+    // And it must survive in the database (real persistence, not just React
+    // state) as a single updated row, not a duplicate. Checked directly via
+    // the API instead of navigating the date input back to freeDate after a
+    // reload — the app correctly refuses to *type* your way onto a day
+    // that's marked as a holiday (Navbar's own date-field guard), so
+    // re-driving that same input here would just be fighting that rule.
+    const res = await page.request.get('/api/holidays');
+    const holidays = await res.json();
+    const matches = holidays.filter((h: { date: string }) => h.date === freeDate);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].reason).toBe('Vacaciones Médicas');
   });
 
   test('removing a holiday clears the mark entirely', async ({ page }) => {

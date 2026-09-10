@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database,
   Download,
@@ -10,14 +10,14 @@ import {
   Settings2
 } from 'lucide-react';
 import { Appointment, Patient, AutoBackupConfig } from '../types';
-import { loadBackupConfig, saveBackupConfig, computeDailySummary } from '../utils/storage';
+import { computeDailySummary } from '../utils/storage';
+import { fetchBackupConfig, saveBackupConfig } from '../utils/api';
 import { generateAppointmentsCSV, triggerFileDownload } from '../utils/export';
 
 interface BackupManagerProps {
   currentDate: string;
   appointments: Appointment[];
   patients: Patient[];
-  onDataRestored: (newPatients: Patient[], newAppointments: Appointment[]) => void;
   onOpenResetAgenda?: () => void;
   onOpenImportExcel?: () => void;
 }
@@ -26,18 +26,23 @@ export default function BackupManager({
   currentDate,
   appointments,
   patients,
-  onDataRestored,
   onOpenResetAgenda,
   onOpenImportExcel
 }: BackupManagerProps) {
-  const [config, setConfig] = useState<AutoBackupConfig>(loadBackupConfig());
+  const [config, setConfig] = useState<AutoBackupConfig | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchBackupConfig()
+      .then(setConfig)
+      .catch(() => setConfig(null));
+  }, []);
 
   const summary = computeDailySummary(appointments, currentDate);
 
   // Generar y Descargar Backup Ahora -> descarga rápida en formato .csv
-  const handleQuickBackup = () => {
+  const handleQuickBackup = async () => {
     setIsExporting(true);
     const now = new Date();
     const timeStr = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -46,22 +51,31 @@ export default function BackupManager({
     const fileName = `Backup_AgendaMedica_${currentDate.replace(/-/g, '')}.csv`;
     triggerFileDownload(csvContent, fileName, 'text/csv;charset=utf-8;');
 
-    const updatedConfig: AutoBackupConfig = {
-      ...config,
-      lastBackupDate: currentDate,
-      lastBackupTime: timeStr
-    };
-    setConfig(updatedConfig);
-    saveBackupConfig(updatedConfig);
-
-    setIsExporting(false);
-    setStatusMessage('¡Backup .csv descargado exitosamente!');
-    setTimeout(() => setStatusMessage(null), 4000);
+    try {
+      const updatedConfig = await saveBackupConfig({
+        enabled: config?.enabled ?? false,
+        nightlyHour: config?.nightlyHour ?? 21,
+        nightlyMinute: config?.nightlyMinute ?? 0,
+        autoDownloadExcel: config?.autoDownloadExcel ?? false,
+        autoDownloadCsv: config?.autoDownloadCsv ?? false,
+        saveLocalHistory: config?.saveLocalHistory ?? true,
+        lastBackupDate: currentDate,
+        lastBackupTime: timeStr
+      });
+      setConfig(updatedConfig);
+      setStatusMessage('¡Backup .csv descargado exitosamente!');
+    } catch {
+      // The CSV already downloaded regardless — only the "last backup" timestamp failed to save.
+      setStatusMessage('¡Backup .csv descargado! (no se pudo registrar la fecha en el servidor)');
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
   };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Top Banner: Respaldo Offline Garantizado */}
+      {/* Top Banner: Respaldo Garantizado */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 text-white p-6 rounded-3xl shadow-lg border border-slate-700 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -71,14 +85,14 @@ export default function BackupManager({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-bold">
-                  Sistema de Respaldo Offline & Auto-Exportación
+                  Sistema de Respaldo & Auto-Exportación
                 </h2>
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
                   100% Blindado
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Garantía ante caída de servidor: todos los turnos, pacientes y cierres se guardan en tu equipo y se auto-exportan
+                Turnos, pacientes y cierres se guardan en la base de datos del consultorio, compartida entre todos los dispositivos, y se pueden exportar en cualquier momento
               </p>
             </div>
           </div>
@@ -115,15 +129,15 @@ export default function BackupManager({
           </div>
         )}
 
-        {/* Offline explanation cards */}
+        {/* Explanation cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
           <div className="bg-slate-800/70 border border-slate-700 p-3.5 rounded-2xl space-y-1">
             <div className="text-xs font-bold text-teal-300 flex items-center gap-1.5">
               <HardDrive className="w-3.5 h-3.5" />
-              Almacenamiento Local Espejo
+              Base de Datos Compartida
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Cada turno u honorario se graba inmediatamente en el navegador. Si no hay internet o el servidor se cae, la agenda abre normalmente.
+              Cada turno u honorario se graba en el servidor del consultorio y está disponible al instante desde cualquier dispositivo con acceso.
             </p>
           </div>
 
@@ -145,7 +159,7 @@ export default function BackupManager({
             <p className="text-[11px] text-slate-400 leading-relaxed">
               Último backup realizado:{' '}
               <strong className="text-slate-200">
-                {config.lastBackupDate
+                {config?.lastBackupDate
                   ? `${config.lastBackupDate} a las ${config.lastBackupTime || '21:00'} hs`
                   : 'Pendiente para esta noche'}
               </strong>

@@ -1,0 +1,119 @@
+// Prisma schema for Agenda Médica.
+//
+// Local development and tests run against SQLite (zero setup, file-based).
+// Production is meant to run against a real hosted PostgreSQL instance —
+// switch the datasource `provider` below to "postgresql" and point
+// DATABASE_URL at your hosted database (see README "Deploy" section).
+// Prisma's schema/query layer is provider-agnostic for everything used
+// here, so no model changes are needed to switch.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Patient {
+  id              String   @id @default(cuid())
+  dni             String   @unique
+  nombre          String
+  apellido        String
+  email           String   @default("")
+  telefono        String
+  fechaNacimiento String   @default("")
+  coberturaTipo   String
+  obraSocial      String
+  numeroAfiliado  String   @default("")
+  notasMedicas    String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("patients")
+}
+
+// pacienteId is intentionally a plain string, not a foreign key relation:
+// appointments keep their own snapshot of the patient's data (name, DNI,
+// phone...) taken at booking time, and must keep working even after the
+// patient record itself is edited or deleted — matching the app's existing
+// behavior (see Appointment.pacienteNombre etc. in src/types.ts).
+model Appointment {
+  id                     String   @id @default(cuid())
+  pacienteId             String
+  pacienteNombre         String
+  pacienteDni            String
+  pacienteTelefono       String
+  pacienteEmail          String   @default("")
+  pacienteFechaNacimiento String  @default("")
+  coberturaTipo          String
+  obraSocial             String
+  numeroAfiliado         String   @default("")
+
+  fecha           String
+  horaInicio      String
+  tratamientoId   String
+  tratamientoNombre String
+  duracionMinutos Int
+  horaFin         String
+
+  honorarios  Float
+  estado      String
+  estadoPago  String
+  metodoPago  String
+
+  recordatorioEnviado  Boolean  @default(false)
+  ultimoRecordatorioAt String?
+
+  respuestaPacienteTipo String?
+  respuestaPacienteAt   String?
+
+  observaciones String  @default("")
+  esBloqueo     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fecha])
+  @@map("appointments")
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  date      String   @unique
+  reason    String
+  type      String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@map("holidays")
+}
+
+model BackupHistoryItem {
+  id                String   @id @default(cuid())
+  date              String
+  timestamp         String
+  appointmentsCount Int
+  patientsCount     Int
+  totalRevenue      Float
+  jsonData          String
+  createdAt         DateTime @default(now())
+
+  @@map("backup_history")
+}
+
+// Single-row table (id is always 1) holding the shared auto-backup config.
+model BackupConfig {
+  id                Int      @id @default(1)
+  enabled           Boolean  @default(false)
+  nightlyHour       Int      @default(21)
+  nightlyMinute     Int      @default(0)
+  autoDownloadExcel Boolean  @default(false)
+  autoDownloadCsv   Boolean  @default(false)
+  saveLocalHistory  Boolean  @default(true)
+  lastBackupDate    String?
+  lastBackupTime    String?
+
+  @@map("backup_config")
+}

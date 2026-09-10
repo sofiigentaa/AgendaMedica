@@ -4,7 +4,18 @@ Checklist para validar la app a mano (demo, smoke test antes de una entrevista, 
 
 Convención: **Precondición** → **Pasos** → **Resultado esperado**. Prioridad: 🔴 Crítico · 🟡 Importante · ⚪ Secundario.
 
-El consultorio solo atiende **Lunes, Martes y Viernes de 14:30 a 20:00 hs** — varios casos dependen de elegir un día válido.
+El consultorio solo atiende **Lunes, Martes y Viernes de 14:30 a 20:00 hs** — varios casos dependen de elegir un día válido. Los datos ahora viven en una base de datos compartida entre todos los dispositivos, protegida con la contraseña del consultorio (no en el navegador de cada uno).
+
+---
+
+## 0. Login
+
+### TC-00 🔴 Acceso con la contraseña del consultorio
+1. Abrí la app sin haber iniciado sesión.
+2. Ingresá una contraseña incorrecta.
+3. Ingresá la contraseña correcta.
+
+**Esperado:** con la contraseña incorrecta aparece "Contraseña incorrecta" y no se accede a la agenda. Con la correcta, se accede normalmente y la sesión persiste al recargar la página (hasta cerrar sesión o que expire, 12 hs). El botón de cerrar sesión (ícono de salida en el Navbar / menú "Más" en mobile) vuelve a la pantalla de login.
 
 ---
 
@@ -31,7 +42,7 @@ El consultorio solo atiende **Lunes, Martes y Viernes de 14:30 a 20:00 hs** — 
 2. Cambiá Estado del Turno a "Atendido / Listo" y Estado de Pago a "Pagado".
 3. Guardar Cambios.
 
-**Esperado:** la tarjeta del turno refleja el nuevo estado. Recargá la página (F5) y verificá que el cambio siga ahí (no se pierde: se guarda en el navegador).
+**Esperado:** la tarjeta del turno refleja el nuevo estado. Recargá la página (F5) y verificá que el cambio siga ahí (se guarda en la base de datos del servidor, no en el navegador — probalo también abriendo la app en otro dispositivo/navegador).
 
 ### TC-04 🔴 Eliminar un turno
 1. En la tarjeta de un turno, ícono de tacho → confirmar "Eliminar Turno" en el diálogo.
@@ -43,6 +54,12 @@ El consultorio solo atiende **Lunes, Martes y Viernes de 14:30 a 20:00 hs** — 
 2. Elegí un motivo (o escribí uno) y guardá.
 
 **Esperado:** el horario queda marcado como bloqueado (franja negra "⛔ NO DAR") y no se puede agendar un turno de paciente ahí hasta desbloquearlo.
+
+### TC-05b 🟡 Editar el motivo de un feriado ya marcado
+1. Marcá un día como feriado con un motivo (ej. "Congreso Médico").
+2. Volvé a tocar el botón (ahora dice "Quitar / Editar Feriado") y cambiá el motivo por otro distinto (ej. "Vacaciones Médicas"). Guardar.
+
+**Esperado:** el día **sigue marcado como feriado**, mostrando el motivo nuevo — no se desmarca ni desaparece. (Esto estaba roto antes: cambiar el motivo eliminaba la marca de feriado en vez de actualizarla.)
 
 ### TC-06 🔴 No se puede agendar en día no laborable ni feriado
 1. Intentá cambiar la fecha del turno a un Miércoles, Jueves, Sábado o Domingo.
@@ -144,9 +161,11 @@ El consultorio solo atiende **Lunes, Martes y Viernes de 14:30 a 20:00 hs** — 
 
 | Caso manual | Test automatizado |
 |---|---|
+| TC-00 | `tests/e2e/auth.spec.ts` |
 | TC-01, TC-06, TC-07 | `tests/e2e/appointments.spec.ts` |
 | TC-02 | `tests/e2e/appointments.spec.ts` → "blocks saving when the chosen time overlaps..." |
 | TC-03, TC-04 | `tests/e2e/appointments.spec.ts` → "edits...", "deletes..." |
+| TC-05b | `tests/e2e/holidays.spec.ts` |
 | TC-09 a TC-12 | `tests/e2e/patients.spec.ts` |
 | TC-14 | `tests/e2e/dashboard.spec.ts` → "daily financial summary..." |
 | TC-16 | `tests/e2e/dashboard.spec.ts` → "manual backup download..." |

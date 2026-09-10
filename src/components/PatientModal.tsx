@@ -7,7 +7,11 @@ import { normalizeDateString } from '../utils/excelImport';
 interface PatientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (patient: Patient) => void;
+  // Returns a Promise so a server-side rejection (e.g. a DNI collision the
+  // client-side check in this file missed, from a concurrent save on
+  // another device) can be shown inline instead of the modal closing as if
+  // it had succeeded.
+  onSave: (patient: Patient) => Promise<void>;
   patientToEdit?: Patient | null;
   // All existing patients, used to validate DNI uniqueness (BUG-07).
   patients?: Patient[];
@@ -36,6 +40,7 @@ export default function PatientModal({
   const [numeroAfiliado, setNumeroAfiliado] = useState('');
   const [notasMedicas, setNotasMedicas] = useState('');
   const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Today's date (YYYY-MM-DD) — used to block future birth dates (BUG-02).
   const todayStr = (() => {
@@ -96,7 +101,7 @@ export default function PatientModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -183,8 +188,19 @@ export default function PatientModal({
       updatedAt: new Date().toISOString()
     };
 
-    onSave(patientData);
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onSave(patientData);
+      onClose();
+    } catch (err) {
+      // Server-side rejection (e.g. a DNI collision from a save that landed
+      // from another device between this form loading and submitting) —
+      // surface it the same way as the client-side checks above, instead of
+      // closing the modal as if the save had gone through.
+      setFormError(err instanceof Error ? err.message : 'No se pudo guardar el paciente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -449,9 +465,10 @@ export default function PatientModal({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-teal-600 to-sky-600 hover:from-teal-700 hover:to-sky-700 rounded-xl shadow-md shadow-teal-500/20 transition-all"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-teal-600 to-sky-600 hover:from-teal-700 hover:to-sky-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl shadow-md shadow-teal-500/20 transition-all"
             >
-              {patientToEdit ? 'Actualizar Paciente' : 'Guardar Paciente'}
+              {isSubmitting ? 'Guardando…' : patientToEdit ? 'Actualizar Paciente' : 'Guardar Paciente'}
             </button>
           </div>
         </form>

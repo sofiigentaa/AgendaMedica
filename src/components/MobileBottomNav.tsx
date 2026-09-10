@@ -7,6 +7,7 @@ import {
   Plus,
   MoreHorizontal,
   Database,
+  LogOut,
   X
 } from 'lucide-react';
 
@@ -15,13 +16,15 @@ interface MobileBottomNavProps {
   onTabChange: (tab: 'agenda' | 'finanzas' | 'pacientes' | 'backups') => void;
   onOpenNewAppointment: () => void;
   pendingRemindersCount: number;
+  onLogout?: () => void;
 }
 
 export default function MobileBottomNav({
   activeTab,
   onTabChange,
   onOpenNewAppointment,
-  pendingRemindersCount
+  pendingRemindersCount,
+  onLogout
 }: MobileBottomNavProps) {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
@@ -86,6 +89,17 @@ export default function MobileBottomNav({
                   <div className="text-[11px] text-slate-400 font-normal">Exportar e importar mediante hoja de cálculo</div>
                 </div>
               </button>
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="p-3.5 rounded-2xl flex items-center gap-3 text-sm font-bold transition-all border cursor-pointer bg-slate-800 text-rose-300 border-slate-700 hover:bg-rose-900/40 hover:border-rose-500/50"
+                >
+                  <LogOut className="w-5 h-5 shrink-0" />
+                  <div className="text-left font-bold">Cerrar Sesión</div>
+                </button>
+              )}
             </div>
 
             <button

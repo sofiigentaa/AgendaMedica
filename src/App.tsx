@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CheckCircle2, XCircle, CalendarClock, X } from 'lucide-react';
+import { CheckCircle2, XCircle, CalendarClock, X, Loader2 } from 'lucide-react';
 import {
   Patient,
   Appointment,
@@ -8,21 +8,9 @@ import {
   PaymentMethod,
   HolidayOrNonWorkingDay
 } from './types';
-import {
-  loadPatients,
-  savePatients,
-  loadAppointments,
-  saveAppointments,
-  loadHolidays,
-  saveHolidays,
-  getTodayDateString,
-  loadBackupConfig,
-  computeDailySummary,
-  saveBackupHistoryItem,
-  formatDatePretty
-} from './utils/storage';
+import { getTodayDateString, computeDailySummary, formatDatePretty } from './utils/storage';
 import { exportFullBackupPackage, generateAppointmentsCSV, triggerFileDownload } from './utils/export';
-import { INITIAL_PATIENTS, getInitialAppointments } from './utils/storage';
+import * as api from './utils/api';
 import Navbar from './components/Navbar';
 import CalendarView from './components/CalendarView';
 import DailyFinancialSummary from './components/DailyFinancialSummary';
@@ -34,6 +22,7 @@ import PrintDailyScheduleModal from './components/PrintDailyScheduleModal';
 import ImportPatientsModal from './components/ImportPatientsModal';
 import ResetAgendaModal from './components/ResetAgendaModal';
 import MobileBottomNav from './components/MobileBottomNav';
+import LoginScreen from './components/LoginScreen';
 
 // BUG-20 / BUG-21: pantalla mínima y aislada que ve el PACIENTE al tocar el
 // link de "Confirmar" o "Cancelar" del mensaje de WhatsApp. No importa,
@@ -41,12 +30,19 @@ import MobileBottomNav from './components/MobileBottomNav';
 // ni a ningún otro turno o paciente: solo confirma/cancela el turno propio
 // (identificado por el id de la URL) y muestra un único mensaje de
 // resultado. Nunca debe mostrarse la agenda ni el listado de pacientes.
+//
+// Esta pantalla NO requiere login: llama a los endpoints públicos
+// /api/public/appointments/:id/confirm|cancel (ver server/routes/public.ts),
+// que solo devuelven fecha/hora/tratamiento de ESE turno — nunca el resto
+// de la agenda ni datos de otros pacientes.
 function PatientActionScreen({
   type,
-  appointment
+  summary,
+  notFound
 }: {
   type: 'confirm' | 'cancel';
-  appointment: Appointment | null;
+  summary: api.PublicAppointmentSummary | null;
+  notFound: boolean;
 }) {
   const isConfirm = type === 'confirm';
 
@@ -76,28 +72,34 @@ function PatientActionScreen({
       <div className="bg-white rounded-3xl shadow-xl border border-slate-200 w-full max-w-sm p-8 text-center space-y-4">
         <div
           className={`w-14 h-14 rounded-full mx-auto flex items-center justify-center ${
-            isConfirm ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
+            notFound
+              ? 'bg-slate-100 text-slate-500'
+              : isConfirm
+              ? 'bg-emerald-100 text-emerald-600'
+              : 'bg-rose-100 text-rose-600'
           }`}
         >
-          {isConfirm ? <CheckCircle2 className="w-8 h-8" /> : <XCircle className="w-8 h-8" />}
+          {notFound ? <XCircle className="w-8 h-8" /> : isConfirm ? <CheckCircle2 className="w-8 h-8" /> : <XCircle className="w-8 h-8" />}
         </div>
         <h1 className="text-lg font-black text-slate-900">
-          {isConfirm ? '¡Turno confirmado!' : 'Turno cancelado'}
+          {notFound ? 'Turno no encontrado' : isConfirm ? '¡Turno confirmado!' : 'Turno cancelado'}
         </h1>
         <p className="text-sm text-slate-600">
-          {isConfirm
+          {notFound
+            ? 'El link ya no es válido. Contactanos si necesitás ayuda con tu turno.'
+            : isConfirm
             ? 'Gracias por confirmar tu asistencia. Te esperamos.'
             : 'Registramos la cancelación de tu turno. Nos comunicaremos para coordinar una nueva fecha si lo necesitás.'}
         </p>
 
-        {appointment && (
+        {summary && (
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left text-xs text-slate-700 space-y-1.5">
             <div className="flex items-center gap-1.5 font-bold text-slate-800">
               <CalendarClock className="w-3.5 h-3.5 text-teal-600" />
-              <span>{formatDatePretty(appointment.fecha)}</span>
+              <span>{formatDatePretty(summary.fecha)}</span>
             </div>
-            <div>Horario: {appointment.horaInicio} hs</div>
-            {appointment.tratamientoNombre && <div>Tratamiento: {appointment.tratamientoNombre}</div>}
+            <div>Horario: {summary.horaInicio} hs</div>
+            {summary.tratamientoNombre && <div>Tratamiento: {summary.tratamientoNombre}</div>}
           </div>
         )}
 
@@ -114,12 +116,49 @@ function PatientActionScreen({
   );
 }
 
+// Wrapper that calls only the narrow public confirm/cancel endpoint and
+// shows the appointment's own summary — it never has access to (and never
+// requests) the rest of the patients/appointments data.
+function PatientOnlyActionRoute({ type, id }: { type: 'confirm' | 'cancel'; id: string }) {
+  const [summary, setSummary] = useState<api.PublicAppointmentSummary | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    const action = type === 'confirm' ? api.confirmAppointmentPublic : api.cancelAppointmentPublic;
+    action(id)
+      .then(setSummary)
+      .catch(() => setNotFound(true));
+    // A propósito NO se limpia el query param (?confirm_turno=/?cancel_turno=)
+    // de la URL acá. Si se lo saca y el navegador (sobre todo el navegador
+    // interno de WhatsApp) vuelve a cargar esta misma pestaña más adelante
+    // -por ejemplo al volver de segundo plano-, la app pierde el contexto de
+    // "esto es una confirmación de turno" y termina mostrando la agenda del
+    // consultorio en su lugar. Dejando el parámetro, cualquier recarga cae
+    // otra vez en esta misma pantalla aislada (repetir confirm/cancel es
+    // inofensivo, solo vuelve a guardar el mismo estado).
+  }, [type, id]);
+
+  return <PatientActionScreen type={type} summary={summary} notFound={notFound} />;
+}
+
+function FullScreenLoader({ label }: { label: string }) {
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="flex flex-col items-center gap-3 text-slate-500">
+        <Loader2 className="w-7 h-7 animate-spin text-teal-600" />
+        <p className="text-sm font-semibold">{label}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // BUG-20 / BUG-21: se resuelve ANTES que cualquier otro estado de la app.
   // Si la URL trae confirm_turno / cancel_turno, la app entera se corta acá:
   // se actualiza únicamente ese turno y se muestra la pantalla mínima de
   // arriba. Nunca se llega a montar Navbar, CalendarView, PatientManager ni
-  // ningún componente que exponga otros turnos o pacientes.
+  // ningún componente que exponga otros turnos o pacientes, y nunca se pide
+  // (ni se necesita) haber iniciado sesión.
   const patientActionParams = useMemo(() => {
     if (typeof window === 'undefined') return null;
     const urlParams = new URLSearchParams(window.location.search);
@@ -134,49 +173,33 @@ export default function App() {
     return <PatientOnlyActionRoute {...patientActionParams} />;
   }
 
-  return <AdminApp />;
+  return <AuthGate />;
 }
 
-// Wrapper that loads/persists only what's needed to apply the confirm/cancel
-// action and to show the appointment's own summary — it never reads or
-// exposes the rest of the patients/appointments list to the UI.
-function PatientOnlyActionRoute({ type, id }: { type: 'confirm' | 'cancel'; id: string }) {
-  const [appointment, setAppointment] = useState<Appointment | null>(null);
+// Todo el resto de la app (agenda, pacientes, finanzas, backups) vive detrás
+// de la contraseña compartida del consultorio: sin sesión válida, ni
+// siquiera se intenta cargar el padrón ni los turnos.
+function AuthGate() {
+  const [status, setStatus] = useState<'checking' | 'guest' | 'authed'>('checking');
 
   useEffect(() => {
-    const allAppointments = loadAppointments();
-    const target = allAppointments.find((a) => a.id === id) || null;
-    if (target) {
-      const updated: Appointment = {
-        ...target,
-        estado: (type === 'confirm' ? 'confirmado' : 'cancelado') as AppointmentStatus,
-        recordatorioEnviado: type === 'confirm' ? true : target.recordatorioEnviado,
-        // RF-07 / RF-09: constancia de la respuesta real del paciente, que
-        // se muestra luego en PatientHistoryModal.
-        respuestaPacienteTipo: type === 'confirm' ? 'confirmado' : 'cancelado',
-        respuestaPacienteAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      saveAppointments(allAppointments.map((a) => (a.id === id ? updated : a)));
-      setAppointment(updated);
-    }
-    // A propósito NO se limpia el query param (?confirm_turno=/?cancel_turno=)
-    // de la URL acá. Si se lo saca y el navegador (sobre todo el navegador
-    // interno de WhatsApp) vuelve a cargar esta misma pestaña más adelante
-    // -por ejemplo al volver de segundo plano-, la app pierde el contexto de
-    // "esto es una confirmación de turno" y termina mostrando la agenda del
-    // consultorio en su lugar. Dejando el parámetro, cualquier recarga cae
-    // otra vez en esta misma pantalla aislada (repetir confirm/cancel es
-    // inofensivo, solo vuelve a guardar el mismo estado).
-  }, [type, id]);
+    api
+      .checkSession()
+      .then((authenticated) => setStatus(authenticated ? 'authed' : 'guest'))
+      .catch(() => setStatus('guest'));
+  }, []);
 
-  return <PatientActionScreen type={type} appointment={appointment} />;
+  if (status === 'checking') return <FullScreenLoader label="Verificando sesión…" />;
+  if (status === 'guest') return <LoginScreen onLoggedIn={() => setStatus('authed')} />;
+  return <AdminApp onLogout={() => setStatus('guest')} />;
 }
 
-function AdminApp() {
-  const [patients, setPatients] = useState<Patient[]>(() => loadPatients());
-  const [appointments, setAppointments] = useState<Appointment[]>(() => loadAppointments());
-  const [holidays, setHolidays] = useState<HolidayOrNonWorkingDay[]>(() => loadHolidays());
+function AdminApp({ onLogout }: { onLogout: () => void }) {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [holidays, setHolidays] = useState<HolidayOrNonWorkingDay[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState<string>(() => getTodayDateString());
   const [activeTab, setActiveTab] = useState<'agenda' | 'finanzas' | 'pacientes' | 'backups'>('agenda');
 
@@ -201,25 +224,37 @@ function AdminApp() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isResetAgendaModalOpen, setIsResetAgendaModalOpen] = useState(false);
   // BUG-09 / BUG-10: notificación genérica para acciones administrativas
-  // (vaciar turnos, vaciar todo, restablecer con datos demo). Cada acción
-  // define su propio mensaje y color, así nunca se mezcla con el mensaje de
-  // "se importaron N pacientes" de otra funcionalidad.
+  // (vaciar turnos, vaciar todo, restablecer con datos demo, errores de red).
+  // Cada acción define su propio mensaje y color, así nunca se mezcla con el
+  // mensaje de "se importaron N pacientes" de otra funcionalidad.
   const [adminNotification, setAdminNotification] = useState<{ message: string; type: 'success' | 'danger' } | null>(
     null
   );
 
-  // Sync state to localStorage whenever it changes
-  useEffect(() => {
-    savePatients(patients);
-  }, [patients]);
+  const showError = (message: string) => setAdminNotification({ message, type: 'danger' });
 
+  // Data now lives in a shared database instead of this browser's
+  // localStorage — load it from the API once per session instead of
+  // synchronously seeding it on first render.
   useEffect(() => {
-    saveAppointments(appointments);
-  }, [appointments]);
-
-  useEffect(() => {
-    saveHolidays(holidays);
-  }, [holidays]);
+    let cancelled = false;
+    Promise.all([api.fetchPatients(), api.fetchAppointments(), api.fetchHolidays()])
+      .then(([p, a, h]) => {
+        if (cancelled) return;
+        setPatients(p);
+        setAppointments(a);
+        setHolidays(h);
+        setIsLoadingData(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(err.message || 'No se pudieron cargar los datos del servidor.');
+        setIsLoadingData(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // RF-14: el toast de notificación (ej. "Se restablecieron los datos de
   // demostración") se cierra solo a los pocos segundos, además de poder
@@ -230,69 +265,61 @@ function AdminApp() {
     return () => clearTimeout(timer);
   }, [adminNotification]);
 
-  const handleToggleHoliday = (
+  const handleToggleHoliday = async (
     date: string,
     reason?: string,
     type?: HolidayOrNonWorkingDay['type']
   ) => {
-    setHolidays((prev) => {
-      const exists = prev.find((h) => h.date === date);
-      const trimmedReason = (reason || '').trim();
-
-      // Explicit removal: called with an empty reason (the "Quitar Feriado"
-      // button in both calendar views uses this convention).
+    const trimmedReason = (reason || '').trim();
+    try {
       if (!trimmedReason) {
-        return prev.filter((h) => h.date !== date);
+        await api.deleteHoliday(date);
+        setHolidays((prev) => prev.filter((h) => h.date !== date));
+        return;
       }
-
-      // A different reason/type was entered for a day that's already marked
-      // as a holiday: update it in place instead of dropping the mark
-      // entirely (previously any edit here silently un-marked the day).
-      if (exists) {
-        return prev.map((h) =>
-          h.date === date ? { ...h, reason: trimmedReason, type: type || h.type } : h
-        );
-      }
-
-      const newHoliday: HolidayOrNonWorkingDay = {
-        id: `hol-${Date.now()}`,
-        date,
-        reason: trimmedReason,
-        type: type || 'feriado',
-        createdAt: new Date().toISOString()
-      };
-      return [...prev, newHoliday];
-    });
+      const saved = await api.saveHoliday(date, trimmedReason, type);
+      setHolidays((prev) => {
+        const exists = prev.some((h) => h.date === date);
+        return exists ? prev.map((h) => (h.date === date ? saved : h)) : [...prev, saved];
+      });
+    } catch (err: any) {
+      showError(err.message || 'No se pudo guardar el feriado.');
+    }
   };
 
-  // Automated Nightly Backup Cron-like interval in browser
+  // Automated Nightly Backup Cron-like interval
   useEffect(() => {
-    const checkNightlyBackup = () => {
-      const config = loadBackupConfig();
-      if (!config.enabled) return;
+    const checkNightlyBackup = async () => {
+      try {
+        const config = await api.fetchBackupConfig();
+        if (!config.enabled) return;
 
-      const now = new Date();
-      const currentHour = now.getHours();
-      const todayStr = getTodayDateString();
+        const now = new Date();
+        const currentHour = now.getHours();
+        const todayStr = getTodayDateString();
 
-      // If it's the configured backup hour and hasn't run today
-      if (currentHour >= config.nightlyHour && config.lastBackupDate !== todayStr) {
-        console.log(`[Backup Automático] Ejecutando respaldo nocturno de las ${config.nightlyHour}:00 hs...`);
-        const summary = computeDailySummary(appointments, todayStr);
-        
-        if (config.autoDownloadExcel || config.autoDownloadCsv) {
-          exportFullBackupPackage(todayStr, appointments, patients, summary);
+        // If it's the configured backup hour and hasn't run today
+        if (currentHour >= config.nightlyHour && config.lastBackupDate !== todayStr) {
+          console.log(`[Backup Automático] Ejecutando respaldo nocturno de las ${config.nightlyHour}:00 hs...`);
+          const summary = computeDailySummary(appointments, todayStr);
+
+          if (config.autoDownloadExcel || config.autoDownloadCsv) {
+            exportFullBackupPackage(todayStr, appointments, patients, summary);
+          }
+
+          await api.saveBackupConfig({ ...config, lastBackupDate: todayStr, lastBackupTime: now.toLocaleTimeString('es-AR') });
+          await api.createBackupHistoryItem({
+            id: `auto-${Date.now()}`,
+            date: todayStr,
+            timestamp: `${todayStr} ${now.toLocaleTimeString('es-AR')}`,
+            appointmentsCount: appointments.length,
+            patientsCount: patients.length,
+            totalRevenue: summary.totalHonorariosPercibidos,
+            jsonData: JSON.stringify({ patients, appointments, summary, exportDate: todayStr })
+          });
         }
-
-        saveBackupHistoryItem({
-          id: `auto-${Date.now()}`,
-          date: todayStr,
-          timestamp: `${todayStr} ${now.toLocaleTimeString('es-AR')}`,
-          appointmentsCount: appointments.length,
-          patientsCount: patients.length,
-          totalRevenue: summary.totalHonorariosPercibidos,
-          jsonData: JSON.stringify({ patients, appointments, summary, exportDate: todayStr })
-        });
+      } catch (err) {
+        console.error('Error en el backup automático nocturno', err);
       }
     };
 
@@ -301,87 +328,69 @@ function AdminApp() {
   }, [appointments, patients]);
 
   // Appointment CRUD Handlers
-  const handleSaveAppointment = (appointment: Appointment) => {
-    setAppointments((prev) => {
-      const exists = prev.some((a) => a.id === appointment.id);
-      if (exists) {
-        return prev.map((a) => (a.id === appointment.id ? appointment : a));
-      }
-      return [...prev, appointment];
-    });
+  const handleSaveAppointment = async (appointment: Appointment) => {
+    try {
+      const saved = await api.saveAppointment(appointment);
+      setAppointments((prev) => {
+        const exists = prev.some((a) => a.id === saved.id);
+        return exists ? prev.map((a) => (a.id === saved.id ? saved : a)) : [...prev, saved];
+      });
+    } catch (err: any) {
+      showError(err.message || 'No se pudo guardar el turno.');
+    }
   };
 
-  const handleDeleteAppointment = (id: string) => {
-    setAppointments((prev) => prev.filter((a) => a.id !== id));
+  const handleDeleteAppointment = async (id: string) => {
+    try {
+      await api.deleteAppointment(id);
+      setAppointments((prev) => prev.filter((a) => a.id !== id));
+    } catch (err: any) {
+      showError(err.message || 'No se pudo eliminar el turno.');
+    }
+  };
+
+  // Patches (and persists) a single field-level change to one appointment —
+  // used by the quick inline controls (status/payment dropdowns, reminder
+  // sent) that don't go through the full AppointmentModal form.
+  const patchAppointment = async (id: string, patch: Partial<Appointment>) => {
+    const current = appointments.find((a) => a.id === id);
+    if (!current) return;
+    const updated: Appointment = { ...current, ...patch, updatedAt: new Date().toISOString() };
+    // Optimistic update so the UI feels instant; reconciled with the
+    // server's response (or rolled back on error) right after.
+    setAppointments((prev) => prev.map((a) => (a.id === id ? updated : a)));
+    try {
+      const saved = await api.saveAppointment(updated);
+      setAppointments((prev) => prev.map((a) => (a.id === id ? saved : a)));
+    } catch (err: any) {
+      setAppointments((prev) => prev.map((a) => (a.id === id ? current : a)));
+      showError(err.message || 'No se pudo guardar el cambio.');
+    }
   };
 
   const handleUpdateStatus = (id: string, status: AppointmentStatus) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, estado: status, updatedAt: new Date().toISOString() } : a))
-    );
+    patchAppointment(id, { estado: status });
   };
 
-  const handleUpdatePayment = (
-    id: string,
-    estadoPago: PaymentStatus,
-    metodoPago?: PaymentMethod
-  ) => {
-    setAppointments((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              estadoPago,
-              metodoPago: metodoPago || a.metodoPago,
-              updatedAt: new Date().toISOString()
-            }
-          : a
-      )
-    );
+  const handleUpdatePayment = (id: string, estadoPago: PaymentStatus, metodoPago?: PaymentMethod) => {
+    const current = appointments.find((a) => a.id === id);
+    patchAppointment(id, { estadoPago, metodoPago: metodoPago || current?.metodoPago });
   };
 
   const handleMarkReminderSent = (appointmentId: string) => {
-    setAppointments((prev) =>
-      prev.map((a) =>
-        a.id === appointmentId
-          ? {
-              ...a,
-              recordatorioEnviado: true,
-              ultimoRecordatorioAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }
-          : a
-      )
-    );
+    patchAppointment(appointmentId, { recordatorioEnviado: true, ultimoRecordatorioAt: new Date().toISOString() });
   };
 
-  const handleMarkAllRemindersSent = (appointmentIds: string[]) => {
-    setAppointments((prev) =>
-      prev.map((a) =>
-        appointmentIds.includes(a.id)
-          ? {
-              ...a,
-              recordatorioEnviado: true,
-              ultimoRecordatorioAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }
-          : a
-      )
-    );
-  };
-
-  // Patient CRUD Handlers
-  const handleSavePatient = (patient: Patient) => {
-    // Si patientToEdit es null, estamos registrando un paciente nuevo (no
-    // editando uno existente).
+  // Patient CRUD Handlers. Returns a Promise so PatientModal can await it and
+  // keep the form open (showing the server's error, e.g. a duplicate DNI
+  // caught by the database's unique constraint) instead of closing blindly.
+  const handleSavePatient = async (patient: Patient) => {
     const isNewPatient = !patientToEdit;
+    const saved = await api.savePatient(patient);
 
     setPatients((prev) => {
-      const exists = prev.some((p) => p.id === patient.id);
-      if (exists) {
-        return prev.map((p) => (p.id === patient.id ? patient : p));
-      }
-      return [...prev, patient];
+      const exists = prev.some((p) => p.id === saved.id);
+      return exists ? prev.map((p) => (p.id === saved.id ? saved : p)) : [...prev, saved];
     });
 
     // Al registrar un paciente nuevo, pasamos directamente a cargarle un
@@ -390,13 +399,18 @@ function AdminApp() {
       setPatientToEdit(null);
       setAppointmentToEdit(null);
       setIsBlockedSlotMode(false);
-      setPreSelectedPatientId(patient.id);
+      setPreSelectedPatientId(saved.id);
       setIsAppointmentModalOpen(true);
     }
   };
 
-  const handleDeletePatient = (id: string) => {
-    setPatients((prev) => prev.filter((p) => p.id !== id));
+  const handleDeletePatient = async (id: string) => {
+    try {
+      await api.deletePatient(id);
+      setPatients((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: any) {
+      showError(err.message || 'No se pudo eliminar el paciente.');
+    }
   };
 
   const handleBookAppointmentForPatient = (patient: Patient) => {
@@ -417,21 +431,19 @@ function AdminApp() {
     exportFullBackupPackage(currentDate, appointments, patients, summary);
   };
 
-  const handleDataRestored = (newPatients: Patient[], newAppointments: Appointment[]) => {
-    setPatients(newPatients);
-    setAppointments(newAppointments);
-  };
-
-  const handleImportPatientsCompleted = (imported: Patient[]) => {
-    const existingDnis = new Set(patients.map((p) => p.dni.replace(/\D/g, '')));
-    const newUnique = imported.filter((p) => {
-      const cleanDni = p.dni.replace(/\D/g, '');
-      return cleanDni === '' || !existingDnis.has(cleanDni);
-    });
-    setPatients((prev) => [...prev, ...newUnique]);
-    setLastImportBatch(
-      newUnique.length > 0 ? { ids: newUnique.map((p) => p.id), count: newUnique.length, dismissed: false } : null
-    );
+  const handleImportPatientsCompleted = async (imported: Patient[]) => {
+    try {
+      const { created, skippedDuplicateDni } = await api.bulkCreatePatients(imported);
+      setPatients((prev) => [...prev, ...created]);
+      setLastImportBatch(
+        created.length > 0 ? { ids: created.map((p) => p.id), count: created.length, dismissed: false } : null
+      );
+      if (skippedDuplicateDni.length > 0 && created.length === 0) {
+        showError('Todos los pacientes de la planilla ya estaban en el padrón (DNI duplicado).');
+      }
+    } catch (err: any) {
+      showError(err.message || 'No se pudo importar el padrón.');
+    }
   };
 
   // BUG-18: "Mantener" ahora persiste en el estado de App, no en un estado
@@ -440,34 +452,59 @@ function AdminApp() {
     setLastImportBatch((prev) => (prev ? { ...prev, dismissed: true } : prev));
   };
 
-  const handleUndoLastImport = () => {
+  const handleUndoLastImport = async () => {
     if (!lastImportBatch) return;
-    const idsToRemove = new Set(lastImportBatch.ids);
-    setPatients((prev) => prev.filter((p) => !idsToRemove.has(p.id)));
-    setLastImportBatch(null);
+    try {
+      await fetch('/api/patients/bulk', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: lastImportBatch.ids })
+      });
+      const idsToRemove = new Set(lastImportBatch.ids);
+      setPatients((prev) => prev.filter((p) => !idsToRemove.has(p.id)));
+      setLastImportBatch(null);
+    } catch (err: any) {
+      showError(err.message || 'No se pudo deshacer la importación.');
+    }
   };
 
   // BUG-09: al borrar/restablecer la agenda, también se limpia cualquier
   // aviso de importación de pacientes que hubiera quedado colgado de antes
   // (evita que aparezca "Se importaron 1808 pacientes" después de un borrado).
-  const handleClearAllData = () => {
-    setPatients([]);
-    setAppointments([]);
-    setLastImportBatch(null);
-    // BUG-10: mensaje de éxito real (verde), nunca un cartel de error.
-    setAdminNotification({ message: 'Se vació toda la agenda: pacientes y turnos eliminados.', type: 'success' });
+  const handleClearAllData = async () => {
+    try {
+      await Promise.all([api.deleteAllAppointments(), api.deleteAllPatients()]);
+      setPatients([]);
+      setAppointments([]);
+      setLastImportBatch(null);
+      // BUG-10: mensaje de éxito real (verde), nunca un cartel de error.
+      setAdminNotification({ message: 'Se vació toda la agenda: pacientes y turnos eliminados.', type: 'success' });
+    } catch (err: any) {
+      showError(err.message || 'No se pudo vaciar la agenda.');
+    }
   };
 
-  const handleClearAppointmentsOnly = () => {
-    setAppointments([]);
-    setAdminNotification({ message: 'Se vaciaron todos los turnos. El padrón de pacientes se mantuvo intacto.', type: 'success' });
+  const handleClearAppointmentsOnly = async () => {
+    try {
+      await api.deleteAllAppointments();
+      setAppointments([]);
+      setAdminNotification({ message: 'Se vaciaron todos los turnos. El padrón de pacientes se mantuvo intacto.', type: 'success' });
+    } catch (err: any) {
+      showError(err.message || 'No se pudieron vaciar los turnos.');
+    }
   };
 
-  const handleLoadDemoData = () => {
-    setPatients(INITIAL_PATIENTS);
-    setAppointments(getInitialAppointments());
-    setLastImportBatch(null);
-    setAdminNotification({ message: 'Se restablecieron los datos de demostración.', type: 'success' });
+  const handleLoadDemoData = async () => {
+    try {
+      const { patients: p, appointments: a } = await api.loadDemoData();
+      setPatients(p);
+      setAppointments(a);
+      setLastImportBatch(null);
+      setAdminNotification({ message: 'Se restablecieron los datos de demostración.', type: 'success' });
+    } catch (err: any) {
+      showError(err.message || 'No se pudieron cargar los datos de demostración.');
+    }
   };
 
   // Count pending reminders for current day
@@ -476,6 +513,25 @@ function AdminApp() {
   ).length;
 
   const currentDaySummary = computeDailySummary(appointments, currentDate);
+
+  if (isLoadingData) return <FullScreenLoader label="Cargando agenda…" />;
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-rose-200 p-6 max-w-sm text-center space-y-3">
+          <p className="text-sm font-bold text-rose-700">No se pudo conectar con el servidor</p>
+          <p className="text-xs text-slate-500">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-xl"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
@@ -498,6 +554,10 @@ function AdminApp() {
         onOpenImportExcel={() => setIsImportModalOpen(true)}
         pendingRemindersCount={pendingRemindersToday}
         holidays={holidays}
+        onLogout={async () => {
+          await api.logout();
+          onLogout();
+        }}
       />
 
       {/* Main Content Area - with bottom padding for mobile navigation */}
@@ -594,7 +654,6 @@ function AdminApp() {
             currentDate={currentDate}
             appointments={appointments}
             patients={patients}
-            onDataRestored={handleDataRestored}
             onOpenResetAgenda={() => setIsResetAgendaModalOpen(true)}
             onOpenImportExcel={() => setIsImportModalOpen(true)}
           />
@@ -678,6 +737,10 @@ function AdminApp() {
           setIsAppointmentModalOpen(true);
         }}
         pendingRemindersCount={pendingRemindersToday}
+        onLogout={async () => {
+          await api.logout();
+          onLogout();
+        }}
       />
     </div>
   );

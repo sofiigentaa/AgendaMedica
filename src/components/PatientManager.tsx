@@ -27,11 +27,11 @@ interface PatientManagerProps {
   appointments: Appointment[];
   onOpenNewPatient: () => void;
   onEditPatient: (patient: Patient) => void;
-  onDeletePatient: (id: string) => void;
+  onDeletePatient: (id: string) => void | Promise<void>;
   onBookAppointmentForPatient: (patient: Patient) => void;
   onOpenImportExcel: () => void;
   lastImportBatch?: { ids: string[]; count: number; dismissed?: boolean } | null;
-  onUndoLastImport?: () => void;
+  onUndoLastImport?: () => void | Promise<void>;
   onDismissImportBanner?: () => void;
 }
 

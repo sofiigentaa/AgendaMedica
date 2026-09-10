@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   isClinicWorkingDay,
   getNextWorkingDay,
@@ -6,19 +6,9 @@ import {
   getDayOfWeekName,
   formatDatePretty,
   computeDailySummary,
-  loadPatients,
-  savePatients,
-  loadAppointments,
-  saveAppointments,
-  INITIAL_PATIENTS,
-  getInitialAppointments,
   CLINIC_WORKING_DAYS,
 } from '../../src/utils/storage';
 import type { Appointment } from '../../src/types';
-
-beforeEach(() => {
-  localStorage.clear();
-});
 
 describe('isClinicWorkingDay', () => {
   it('accepts Monday, Tuesday and Friday', () => {
@@ -158,31 +148,3 @@ describe('computeDailySummary', () => {
   });
 });
 
-describe('localStorage persistence round-trip', () => {
-  it('loadPatients seeds and returns INITIAL_PATIENTS when storage is empty', () => {
-    const patients = loadPatients();
-    expect(patients.length).toBe(INITIAL_PATIENTS.length);
-    expect(localStorage.getItem('agenda_medica_patients_v1')).not.toBeNull();
-  });
-
-  it('savePatients + loadPatients round-trips custom data', () => {
-    const custom = [{ ...INITIAL_PATIENTS[0], id: 'pat-custom', nombre: 'Custom' }];
-    savePatients(custom);
-    const loaded = loadPatients();
-    expect(loaded).toHaveLength(1);
-    expect(loaded[0].nombre).toBe('Custom');
-  });
-
-  it('loadAppointments seeds and returns initial demo appointments when storage is empty', () => {
-    const appts = loadAppointments();
-    expect(appts.length).toBe(getInitialAppointments().length);
-  });
-
-  it('saveAppointments + loadAppointments round-trips custom data', () => {
-    const custom = [makeAppointment({ id: 'apt-custom' })];
-    saveAppointments(custom);
-    const loaded = loadAppointments();
-    expect(loaded).toHaveLength(1);
-    expect(loaded[0].id).toBe('apt-custom');
-  });
-});

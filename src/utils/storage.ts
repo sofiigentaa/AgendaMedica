@@ -1,11 +1,5 @@
-import { Patient, Appointment, DailySummary, AutoBackupConfig, BackupHistoryItem, PaymentMethod, HolidayOrNonWorkingDay } from '../types';
+import { Patient, Appointment, DailySummary, PaymentMethod, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS } from '../data/treatments';
-
-const PATIENTS_STORAGE_KEY = 'agenda_medica_patients_v1';
-const APPOINTMENTS_STORAGE_KEY = 'agenda_medica_appointments_v1';
-const BACKUP_CONFIG_KEY = 'agenda_medica_backup_config_v1';
-const BACKUP_HISTORY_KEY = 'agenda_medica_backup_history_v1';
-const HOLIDAYS_STORAGE_KEY = 'agenda_medica_holidays_v1';
 
 // Official clinic working days (0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday)
 export const CLINIC_WORKING_DAYS = [1, 2, 5]; // Lunes, Martes, Viernes
@@ -80,28 +74,6 @@ export const INITIAL_HOLIDAYS: HolidayOrNonWorkingDay[] = [
     createdAt: '2026-01-01T00:00:00.000Z'
   }
 ];
-
-export function loadHolidays(): HolidayOrNonWorkingDay[] {
-  try {
-    const data = localStorage.getItem(HOLIDAYS_STORAGE_KEY);
-    if (!data) {
-      saveHolidays(INITIAL_HOLIDAYS);
-      return INITIAL_HOLIDAYS;
-    }
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error loading holidays from localStorage', error);
-    return INITIAL_HOLIDAYS;
-  }
-}
-
-export function saveHolidays(holidays: HolidayOrNonWorkingDay[]): void {
-  try {
-    localStorage.setItem(HOLIDAYS_STORAGE_KEY, JSON.stringify(holidays));
-  } catch (error) {
-    console.error('Error saving holidays to localStorage', error);
-  }
-}
 
 export function isClinicWorkingDay(dateStr: string): boolean {
   if (!dateStr) return false;
@@ -465,122 +437,6 @@ export function getInitialAppointments(): Appointment[] {
       updatedAt: '2026-08-24T16:30:00.000Z'
     }
   ];
-}
-
-// Local Storage helpers
-export function loadPatients(): Patient[] {
-  try {
-    const raw = localStorage.getItem(PATIENTS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(INITIAL_PATIENTS));
-      return INITIAL_PATIENTS;
-    }
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Error loading patients from localStorage', err);
-    return INITIAL_PATIENTS;
-  }
-}
-
-export function savePatients(patients: Patient[]): void {
-  try {
-    localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(patients));
-  } catch (err) {
-    console.error('Error saving patients to localStorage', err);
-  }
-}
-
-export function loadAppointments(): Appointment[] {
-  try {
-    const raw = localStorage.getItem(APPOINTMENTS_STORAGE_KEY);
-    if (!raw) {
-      const initial = getInitialAppointments();
-      localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(initial));
-      return initial;
-    }
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Error loading appointments from localStorage', err);
-    return getInitialAppointments();
-  }
-}
-
-export function saveAppointments(appointments: Appointment[]): void {
-  try {
-    localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(appointments));
-  } catch (err) {
-    console.error('Error saving appointments to localStorage', err);
-  }
-}
-
-export function loadBackupConfig(): AutoBackupConfig {
-  try {
-    const raw = localStorage.getItem(BACKUP_CONFIG_KEY);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    // Ignore
-  }
-  return {
-    enabled: false,
-    nightlyHour: 21,
-    nightlyMinute: 0,
-    autoDownloadExcel: false,
-    autoDownloadCsv: false,
-    saveLocalHistory: true,
-    lastBackupDate: undefined,
-    lastBackupTime: undefined
-  };
-}
-
-export function saveBackupConfig(config: AutoBackupConfig): void {
-  try {
-    localStorage.setItem(BACKUP_CONFIG_KEY, JSON.stringify(config));
-  } catch (e) {
-    console.error('Error saving backup config', e);
-  }
-}
-
-export function loadBackupHistory(): BackupHistoryItem[] {
-  try {
-    const raw = localStorage.getItem(BACKUP_HISTORY_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error loading backup history', e);
-  }
-  return [];
-}
-
-export function saveBackupHistoryItem(item: BackupHistoryItem): void {
-  try {
-    const list = loadBackupHistory();
-    // Keep max 30 days of snapshots
-    const updated = [item, ...list.filter((x) => x.id !== item.id)].slice(0, 30);
-    localStorage.setItem(BACKUP_HISTORY_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.error('Error saving backup history item', e);
-  }
-}
-
-export function deleteBackupHistoryItem(id: string): BackupHistoryItem[] {
-  try {
-    const list = loadBackupHistory();
-    const updated = list.filter((x) => x.id !== id);
-    localStorage.setItem(BACKUP_HISTORY_KEY, JSON.stringify(updated));
-    return updated;
-  } catch (e) {
-    console.error('Error deleting backup history item', e);
-    return [];
-  }
-}
-
-export function clearAllBackupHistory(): void {
-  try {
-    localStorage.removeItem(BACKUP_HISTORY_KEY);
-  } catch (e) {
-    console.error('Error clearing backup history', e);
-  }
 }
 
 /**

@@ -129,7 +129,7 @@ test.describe('Appointments — core CRUD & business rules', () => {
 
     await expect(statusSelect(page)).toHaveValue('atendido');
 
-    // Reload to confirm the change survived (localStorage persistence, no backend DB).
+    // Reload to confirm the change survived (real DB persistence, not just React state).
     await page.reload();
     await goToDate(page, freeDate);
     await expect(statusSelect(page)).toHaveValue('atendido');

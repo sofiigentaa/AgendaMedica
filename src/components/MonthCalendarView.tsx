@@ -22,7 +22,7 @@ interface MonthCalendarViewProps {
   onSelectDate: (date: string) => void;
   appointments: Appointment[];
   holidays: HolidayOrNonWorkingDay[];
-  onToggleHoliday: (date: string, reason?: string, type?: HolidayOrNonWorkingDay['type']) => void;
+  onToggleHoliday: (date: string, reason?: string, type?: HolidayOrNonWorkingDay['type']) => void | Promise<void>;
   onOpenNewAppointment: (date?: string, time?: string) => void;
   onGoToDailyView: (date: string) => void;
   onEditAppointment?: (appointment: Appointment) => void;

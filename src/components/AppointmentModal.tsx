@@ -8,8 +8,8 @@ import ConfirmModal from './ConfirmModal';
 interface AppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (appointment: Appointment) => void;
-  onDelete?: (id: string) => void;
+  onSave: (appointment: Appointment) => void | Promise<void>;
+  onDelete?: (id: string) => void | Promise<void>;
   appointmentToEdit?: Appointment | null;
   selectedDate: string;
   suggestedTime?: string;

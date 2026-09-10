@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Download,
   Clock,
-  FileSpreadsheet
+  FileSpreadsheet,
+  LogOut
 } from 'lucide-react';
 import EsteticaLaserLogo from './EsteticaLaserLogo';
 import { getNextWorkingDay, getPrevWorkingDay, getTodayDateString, isClinicWorkingDay, getHolidayInfo, getDayOfWeekName } from '../utils/storage';
@@ -28,6 +29,7 @@ interface NavbarProps {
   onOpenImportExcel?: () => void;
   pendingRemindersCount: number;
   holidays?: HolidayOrNonWorkingDay[];
+  onLogout?: () => void;
 }
 
 export default function Navbar({
@@ -40,7 +42,8 @@ export default function Navbar({
   onDownloadCsv,
   onOpenImportExcel,
   pendingRemindersCount,
-  holidays = []
+  holidays = [],
+  onLogout
 }: NavbarProps) {
   const [timeString, setTimeString] = useState('');
   const [dateWarning, setDateWarning] = useState<string | null>(null);
@@ -194,6 +197,17 @@ export default function Navbar({
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-teal-400" />
               <span>Importar Hoja Google Sheet</span>
+            </button>
+          )}
+
+          {onLogout && (
+            <button
+              id="btn-logout"
+              onClick={onLogout}
+              title="Cerrar sesión"
+              className="text-xs font-bold bg-slate-800 hover:bg-rose-900/60 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/50 p-2 rounded-xl flex items-center transition-all"
+            >
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           )}
 

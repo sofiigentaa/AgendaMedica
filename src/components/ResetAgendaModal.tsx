@@ -15,9 +15,9 @@ import {
 interface ResetAgendaModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onClearAllData: () => void;
-  onClearAppointmentsOnly: () => void;
-  onLoadDemoData: () => void;
+  onClearAllData: () => void | Promise<void>;
+  onClearAppointmentsOnly: () => void | Promise<void>;
+  onLoadDemoData: () => void | Promise<void>;
   totalAppointments: number;
   totalPatients: number;
 }

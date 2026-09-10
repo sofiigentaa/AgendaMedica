@@ -41,11 +41,11 @@ interface CalendarViewProps {
   onSelectDate: (date: string) => void;
   appointments: Appointment[];
   holidays: HolidayOrNonWorkingDay[];
-  onToggleHoliday: (date: string, reason?: string, type?: HolidayOrNonWorkingDay['type']) => void;
+  onToggleHoliday: (date: string, reason?: string, type?: HolidayOrNonWorkingDay['type']) => void | Promise<void>;
   onOpenNewAppointment: (suggestedTime?: string) => void;
   onOpenBlockSlot?: (suggestedTime?: string) => void;
   onEditAppointment: (appointment: Appointment) => void;
-  onDeleteAppointment: (id: string) => void;
+  onDeleteAppointment: (id: string) => void | Promise<void>;
   onUpdateStatus: (id: string, status: AppointmentStatus) => void;
   onUpdatePayment: (id: string, estadoPago: PaymentStatus, metodoPago?: PaymentMethod) => void;
   onSendReminder: (appointment: Appointment) => void;
