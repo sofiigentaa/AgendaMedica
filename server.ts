@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
+import { validateBackupSavePayload } from './src/utils/backupApi';
 
 dotenv.config();
 
@@ -20,6 +21,12 @@ let serverBackupStore: any[] = [];
 
 app.post('/api/backup/save', (req, res) => {
   try {
+    const validation = validateBackupSavePayload(req.body);
+    if (!validation.ok) {
+      res.status(400).json({ error: validation.error || 'Payload inválido' });
+      return;
+    }
+
     const { date, appointments, patients, summary, timestamp } = req.body;
     serverBackupStore.push({
       id: `backup-${Date.now()}`,

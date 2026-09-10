@@ -399,6 +399,9 @@ export default function CalendarView({
                 return (
                   <button
                     key={slot}
+                    type="button"
+                    data-slot={slot}
+                    data-occupied={occupiedApt ? 'true' : 'false'}
                     onClick={() => {
                       if (occupiedApt) {
                         onEditAppointment(occupiedApt);

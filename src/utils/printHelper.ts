@@ -1,6 +1,7 @@
 import { Appointment, DailySummary, Patient } from '../types';
 import { formatDatePretty } from './storage';
 import { formatCurrency } from '../data/treatments';
+import { escapeHtml } from './htmlEscape';
 
 /**
  * Universal safe print function that works inside iframes, standalone tabs, and mobile.
@@ -16,7 +17,7 @@ export function executePrintDocument(
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${documentTitle} - Estética Láser Rosario</title>
+    <title>${escapeHtml(documentTitle)} - Estética Láser Rosario</title>
     <style>
       @page {
         size: A4 portrait;
@@ -232,7 +233,7 @@ export function executePrintDocument(
   <body>
     <div class="no-print-toolbar">
       <div class="toolbar-title">
-        <span>🖨️ ${documentTitle}</span>
+        <span>🖨️ ${escapeHtml(documentTitle)}</span>
       </div>
       <div class="toolbar-actions">
         <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
@@ -347,8 +348,8 @@ export function printDailyFinancialReport(
             if (isBlocked) {
               return `
             <tr class="blocked-row">
-              <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
-              <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (${apt.observaciones || 'No disponible'})</td>
+              <td class="text-center font-mono font-bold">${escapeHtml(apt.horaInicio)} - ${escapeHtml(apt.horaFin)}</td>
+              <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (${escapeHtml(apt.observaciones || 'No disponible')})</td>
               <td class="text-center">-</td>
               <td class="text-right">-</td>
               <td class="text-center font-bold">No Aplica</td>
@@ -372,20 +373,20 @@ export function printDailyFinancialReport(
 
             return `
           <tr>
-            <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
+            <td class="text-center font-mono font-bold">${escapeHtml(apt.horaInicio)} - ${escapeHtml(apt.horaFin)}</td>
             <td class="font-bold">
-              ${apt.pacienteNombre}
-              <div style="font-size: 8.5px; color: #64748b; font-weight: normal;">Tel: ${apt.pacienteTelefono}</div>
+              ${escapeHtml(apt.pacienteNombre)}
+              <div style="font-size: 8.5px; color: #64748b; font-weight: normal;">Tel: ${escapeHtml(apt.pacienteTelefono)}</div>
             </td>
-            <td>${apt.pacienteDni || patient?.dni || '-'}</td>
-            <td>${apt.tratamientoNombre}</td>
-            <td>${cobertura}</td>
+            <td>${escapeHtml(apt.pacienteDni || patient?.dni || '-')}</td>
+            <td>${escapeHtml(apt.tratamientoNombre)}</td>
+            <td>${escapeHtml(cobertura)}</td>
             <td class="text-right font-mono font-bold">${formatCurrency(Number(apt.honorarios) || 0)}</td>
             <td class="text-center">
               <span style="font-weight: 700; color: ${isPaid ? '#15803d' : '#b45309'};">
                 ${isPaid ? '✓ PAGADO' : 'PENDIENTE'}
               </span>
-              <div style="font-size: 8px; color: #475569;">(${metodoPagoText})</div>
+              <div style="font-size: 8px; color: #475569;">(${escapeHtml(metodoPagoText)})</div>
             </td>
           </tr>
         `;
@@ -501,11 +502,11 @@ export function printDailyScheduleReport(
             if (isBlocked) {
               return `
             <tr class="blocked-row">
-              <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
+              <td class="text-center font-mono font-bold">${escapeHtml(apt.horaInicio)} - ${escapeHtml(apt.horaFin)}</td>
               <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (NO DAR TURNOS)</td>
               <td class="text-center">-</td>
               <td class="text-right">-</td>
-              <td>${apt.observaciones || 'Franja horaria no disponible'}</td>
+              <td>${escapeHtml(apt.observaciones || 'Franja horaria no disponible')}</td>
             </tr>
           `;
             }
@@ -518,28 +519,28 @@ export function printDailyScheduleReport(
             return `
           <tr>
             <td class="text-center font-mono font-bold">
-              ${apt.horaInicio} - ${apt.horaFin}
-              <div style="font-size: 8px; color: #64748b;">(${apt.duracionMinutos}m)</div>
+              ${escapeHtml(apt.horaInicio)} - ${escapeHtml(apt.horaFin)}
+              <div style="font-size: 8px; color: #64748b;">(${escapeHtml(apt.duracionMinutos)}m)</div>
             </td>
             <td class="font-bold">
-              ${apt.pacienteNombre}
-              <div style="font-size: 8.5px; color: #475569; font-weight: normal;">Cel: ${apt.pacienteTelefono}</div>
+              ${escapeHtml(apt.pacienteNombre)}
+              <div style="font-size: 8.5px; color: #475569; font-weight: normal;">Cel: ${escapeHtml(apt.pacienteTelefono)}</div>
             </td>
-            <td class="font-mono">${apt.pacienteDni || '-'}</td>
-            <td class="font-semibold">${apt.tratamientoNombre}</td>
+            <td class="font-mono">${escapeHtml(apt.pacienteDni || '-')}</td>
+            <td class="font-semibold">${escapeHtml(apt.tratamientoNombre)}</td>
             <td>
-              <div class="font-bold">${apt.obraSocial || 'Particular'}</div>
-              ${apt.numeroAfiliado ? `<div style="font-size: 8px; color: #64748b;">N° ${apt.numeroAfiliado}</div>` : ''}
+              <div class="font-bold">${escapeHtml(apt.obraSocial || 'Particular')}</div>
+              ${apt.numeroAfiliado ? `<div style="font-size: 8px; color: #64748b;">N° ${escapeHtml(apt.numeroAfiliado)}</div>` : ''}
             </td>
             <td class="text-right">
               <div class="font-mono font-bold">${formatCurrency(currentInfo.fee)}</div>
               ${
                 currentInfo.method
-                  ? `<div style="font-size: 8.5px; font-weight: 700; color: #0d9488; text-transform: uppercase;">${currentInfo.method}</div>`
+                  ? `<div style="font-size: 8.5px; font-weight: 700; color: #0d9488; text-transform: uppercase;">${escapeHtml(currentInfo.method)}</div>`
                   : ''
               }
             </td>
-            <td style="font-size: 9.5px; color: #475569;">${apt.observaciones || '-'}</td>
+            <td style="font-size: 9.5px; color: #475569;">${escapeHtml(apt.observaciones || '-')}</td>
           </tr>
         `;
           })

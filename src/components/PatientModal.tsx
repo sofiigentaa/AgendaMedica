@@ -3,6 +3,11 @@ import { X, User, Mail, Phone, Calendar, Shield, FileText, Check } from 'lucide-
 import { Patient } from '../types';
 import { INSURANCE_SUGGESTIONS } from '../data/treatments';
 import { normalizeDateString } from '../utils/excelImport';
+import {
+  hasInvalidPersonNameChars,
+  isDuplicatePatientDni,
+  isFutureBirthDate
+} from '../utils/patientValidation';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -12,11 +17,6 @@ interface PatientModalProps {
   // All existing patients, used to validate DNI uniqueness (BUG-07).
   patients?: Patient[];
 }
-
-// Characters we don't allow in Nombre / Apellido. A comma is the most common
-// mistake (pasting "Apellido, Nombre" into a single field), but any other
-// digit/symbol is also invalid for a person's name (BUG-06).
-const INVALID_NAME_CHARS_REGEX = /[,;0-9]/;
 
 export default function PatientModal({
   isOpen,
@@ -107,28 +107,25 @@ export default function PatientModal({
 
     // BUG-06: nombre/apellido no pueden contener comas, números u otros
     // caracteres inválidos. Mensaje específico en vez de uno genérico.
-    if (INVALID_NAME_CHARS_REGEX.test(nombre)) {
+    if (hasInvalidPersonNameChars(nombre)) {
       setFormError('El campo "Nombre" no puede contener comas, números ni símbolos.');
       return;
     }
-    if (INVALID_NAME_CHARS_REGEX.test(apellido)) {
+    if (hasInvalidPersonNameChars(apellido)) {
       setFormError('El campo "Apellido" no puede contener comas, números ni símbolos.');
       return;
     }
 
     // BUG-02: la fecha de nacimiento no puede ser posterior a hoy.
-    if (fechaNacimiento && fechaNacimiento > todayStr) {
+    if (isFutureBirthDate(fechaNacimiento, todayStr)) {
       setFormError('La fecha de nacimiento no puede ser posterior a la fecha actual.');
       return;
     }
 
     // BUG-07: no permitir dos pacientes con el mismo DNI (comparando solo
     // dígitos, para que "34.892.120" y "34892120" cuenten como el mismo DNI).
-    const normalizedDni = dni.replace(/\D/g, '');
-    const dniAlreadyUsed = patients.some(
-      (p) => p.id !== (patientToEdit ? patientToEdit.id : null) && p.dni.replace(/\D/g, '') === normalizedDni
-    );
-    if (normalizedDni && dniAlreadyUsed) {
+    const dniAlreadyUsed = isDuplicatePatientDni(dni, patients, patientToEdit ? patientToEdit.id : null);
+    if (dniAlreadyUsed) {
       setFormError(`Ya existe un paciente registrado con el DNI ${dni}. Verificá el padrón antes de continuar.`);
       return;
     }
@@ -223,6 +220,7 @@ export default function PatientModal({
                 Nombre <span className="text-rose-500">*</span>
               </label>
               <input
+                id="input-patient-nombre"
                 type="text"
                 required
                 placeholder="Ej. Valentina"
@@ -237,6 +235,7 @@ export default function PatientModal({
                 Apellido <span className="text-rose-500">*</span>
               </label>
               <input
+                id="input-patient-apellido"
                 type="text"
                 required
                 placeholder="Ej. Rossi"
@@ -269,6 +268,7 @@ export default function PatientModal({
                 Fecha de Nacimiento
               </label>
               <input
+                id="input-patient-birthdate"
                 type="date"
                 required
                 max={todayStr}
@@ -286,6 +286,7 @@ export default function PatientModal({
                 Teléfono Móvil (WhatsApp) <span className="text-rose-500">*</span>
               </label>
               <input
+                id="input-patient-phone"
                 type="tel"
                 required
                 placeholder="Ej. +54 9 341 588-4321"
@@ -448,6 +449,7 @@ export default function PatientModal({
               Cancelar
             </button>
             <button
+              id="btn-save-patient"
               type="submit"
               className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-teal-600 to-sky-600 hover:from-teal-700 hover:to-sky-700 rounded-xl shadow-md shadow-teal-500/20 transition-all"
             >
