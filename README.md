@@ -1,4 +1,4 @@
-# Agenda Médica & Turnos — Estética Láser Rosario
+# Agenda Médica & Turnos - Estética Láser Rosario
 
 Sistema de gestión de turnos para un consultorio de estética vascular/láser. Full-stack SPA (React + Express) pensada para uso local/offline en un único consultorio, sin backend de base de datos: todo el estado vive en `localStorage` del navegador. El personal entra con una pantalla de login; la sesión se valida en el servidor.
 
@@ -59,6 +59,7 @@ npm run test:all   # ambas suites
 
 - **Unitarios** (`tests/unit/`): cálculo de horarios/duraciones, resumen financiero diario, normalización de teléfonos y generación de recordatorios de WhatsApp, generación de CSV, importación/parseo de planillas de pacientes, y autenticación (hash de contraseña, cookie de sesión y bloqueo por intentos fallidos).
 - **End-to-end** (`tests/e2e/`, requieren `npx playwright install chromium` una sola vez): ingreso con usuario y contraseña, alta/edición/borrado de turnos y pacientes, detección de solapamiento de horarios, reglas de negocio (no agendar en día no laborable ni en el pasado), persistencia tras recargar la página, resumen financiero, backup manual y verificación de que la app es usable en mobile sin overflow horizontal.
+- **Casos de prueba manuales**: [`docs/casos-de-prueba-manuales.md`](docs/casos-de-prueba-manuales.md) — checklist para validar la app a mano (demo, smoke test), con la equivalencia de cada caso en la suite automatizada.
 
 ## Build
 
@@ -70,3 +71,29 @@ npm run lint    # typecheck (tsc --noEmit)
 ## Deploy
 
 `npm run build` genera `dist/` (assets del frontend + `dist/server.cjs`). `npm start` sirve ese build con Express en el puerto `PORT` (por defecto `3000`). Al no depender de una base de datos externa, el único requisito de la plataforma de hosting es correr Node y exponer un puerto — los datos de cada consultorio quedan en el navegador de quien la usa, no en el servidor.
+
+### Render
+
+Este repo incluye `render.yaml`. En [Render](https://render.com) → **New** → **Blueprint**, conectá el repositorio `sofiigentaa/AgendaMedica` y el servicio web `agenda-medica`.
+
+Si lo creás a mano (Web Service):
+
+| Campo | Valor |
+| --- | --- |
+| Runtime | Node |
+| Build command | `npm install && npm run build` |
+| Start command | `npm start` |
+| Health check | `/api/health` |
+
+Variables de entorno (Environment):
+
+| Clave | Valor |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `TRUST_PROXY` | `1` |
+| `ADMIN_USERNAME` | usuario del consultorio (ej. `admin`) |
+| `ADMIN_PASSWORD` | **obligatoria** — una clave fuerte que no esté en el repo |
+
+Sin `ADMIN_PASSWORD` el servicio no arranca. Render asigna `PORT` solo; no hace falta definirlo.
+
+Después del deploy, abrí la URL de Render: tiene que aparecer el login, no la agenda.
