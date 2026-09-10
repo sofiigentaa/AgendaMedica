@@ -1,4 +1,4 @@
-# Agenda Médica & Turnos — Estética Láser Rosario
+# Agenda Médica & Turnos - Estética Láser Rosario
 
 Sistema de gestión de turnos para un consultorio de estética vascular/láser. Full-stack SPA (React + Express) pensada para uso local/offline en un único consultorio, sin backend de base de datos: todo el estado vive en `localStorage` del navegador.
 
