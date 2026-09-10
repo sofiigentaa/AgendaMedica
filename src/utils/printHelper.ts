@@ -3,6 +3,24 @@ import { formatDatePretty } from './storage';
 import { formatCurrency } from '../data/treatments';
 
 /**
+ * Escapes HTML special characters in patient/appointment free-text fields
+ * (name, DNI, phone, observations, obra social, etc.) before they're
+ * concatenated into the raw HTML string printed in a new window. These
+ * values can come from bulk Excel/Google Sheets patient imports, so without
+ * escaping, a crafted cell value (e.g. "<img src=x onerror=...>") would
+ * execute as script in that window when a staff member prints the daily
+ * agenda or financial closing report.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Universal safe print function that works inside iframes, standalone tabs, and mobile.
  * Opens a dedicated print window with automatic trigger, action toolbar, and fallback to direct download/iframe.
  */
@@ -348,7 +366,7 @@ export function printDailyFinancialReport(
               return `
             <tr class="blocked-row">
               <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
-              <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (${apt.observaciones || 'No disponible'})</td>
+              <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (${escapeHtml(apt.observaciones || 'No disponible')})</td>
               <td class="text-center">-</td>
               <td class="text-right">-</td>
               <td class="text-center font-bold">No Aplica</td>
@@ -374,12 +392,12 @@ export function printDailyFinancialReport(
           <tr>
             <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
             <td class="font-bold">
-              ${apt.pacienteNombre}
-              <div style="font-size: 8.5px; color: #64748b; font-weight: normal;">Tel: ${apt.pacienteTelefono}</div>
+              ${escapeHtml(apt.pacienteNombre)}
+              <div style="font-size: 8.5px; color: #64748b; font-weight: normal;">Tel: ${escapeHtml(apt.pacienteTelefono)}</div>
             </td>
-            <td>${apt.pacienteDni || patient?.dni || '-'}</td>
-            <td>${apt.tratamientoNombre}</td>
-            <td>${cobertura}</td>
+            <td>${escapeHtml(apt.pacienteDni || patient?.dni || '-')}</td>
+            <td>${escapeHtml(apt.tratamientoNombre)}</td>
+            <td>${escapeHtml(cobertura)}</td>
             <td class="text-right font-mono font-bold">${formatCurrency(Number(apt.honorarios) || 0)}</td>
             <td class="text-center">
               <span style="font-weight: 700; color: ${isPaid ? '#15803d' : '#b45309'};">
@@ -505,7 +523,7 @@ export function printDailyScheduleReport(
               <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (NO DAR TURNOS)</td>
               <td class="text-center">-</td>
               <td class="text-right">-</td>
-              <td>${apt.observaciones || 'Franja horaria no disponible'}</td>
+              <td>${escapeHtml(apt.observaciones || 'Franja horaria no disponible')}</td>
             </tr>
           `;
             }
@@ -522,24 +540,24 @@ export function printDailyScheduleReport(
               <div style="font-size: 8px; color: #64748b;">(${apt.duracionMinutos}m)</div>
             </td>
             <td class="font-bold">
-              ${apt.pacienteNombre}
-              <div style="font-size: 8.5px; color: #475569; font-weight: normal;">Cel: ${apt.pacienteTelefono}</div>
+              ${escapeHtml(apt.pacienteNombre)}
+              <div style="font-size: 8.5px; color: #475569; font-weight: normal;">Cel: ${escapeHtml(apt.pacienteTelefono)}</div>
             </td>
-            <td class="font-mono">${apt.pacienteDni || '-'}</td>
-            <td class="font-semibold">${apt.tratamientoNombre}</td>
+            <td class="font-mono">${escapeHtml(apt.pacienteDni || '-')}</td>
+            <td class="font-semibold">${escapeHtml(apt.tratamientoNombre)}</td>
             <td>
-              <div class="font-bold">${apt.obraSocial || 'Particular'}</div>
-              ${apt.numeroAfiliado ? `<div style="font-size: 8px; color: #64748b;">N° ${apt.numeroAfiliado}</div>` : ''}
+              <div class="font-bold">${escapeHtml(apt.obraSocial || 'Particular')}</div>
+              ${apt.numeroAfiliado ? `<div style="font-size: 8px; color: #64748b;">N° ${escapeHtml(apt.numeroAfiliado)}</div>` : ''}
             </td>
             <td class="text-right">
               <div class="font-mono font-bold">${formatCurrency(currentInfo.fee)}</div>
               ${
                 currentInfo.method
-                  ? `<div style="font-size: 8.5px; font-weight: 700; color: #0d9488; text-transform: uppercase;">${currentInfo.method}</div>`
+                  ? `<div style="font-size: 8.5px; font-weight: 700; color: #0d9488; text-transform: uppercase;">${escapeHtml(currentInfo.method)}</div>`
                   : ''
               }
             </td>
-            <td style="font-size: 9.5px; color: #475569;">${apt.observaciones || '-'}</td>
+            <td style="font-size: 9.5px; color: #475569;">${escapeHtml(apt.observaciones || '-')}</td>
           </tr>
         `;
           })
