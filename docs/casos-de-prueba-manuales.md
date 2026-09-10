@@ -1,4 +1,4 @@
-# Casos de prueba manuales — Agenda Médica & Turnos
+# Casos de prueba manuales - Agenda Médica & Turnos
 
 Checklist para validar la app a mano (demo, smoke test antes de una entrevista, etc.). Cubre lo mismo que la suite automatizada (`tests/unit/`, `tests/e2e/`) — usá esto cuando quieras verificar visualmente o no puedas correr `npm test` / `npm run test:e2e`.
 
