@@ -28,6 +28,10 @@ export default defineConfig({
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
-    env: { PORT: '4173' },
+    env: {
+      PORT: '4173',
+      ADMIN_USERNAME: 'admin',
+      ADMIN_PASSWORD: 'EsteticaLaser.2026',
+    },
   },
 });

@@ -1,6 +1,6 @@
 # Agenda Médica & Turnos — Estética Láser Rosario
 
-Sistema de gestión de turnos para un consultorio de estética vascular/láser. Full-stack SPA (React + Express) pensada para uso local/offline en un único consultorio, sin backend de base de datos: todo el estado vive en `localStorage` del navegador.
+Sistema de gestión de turnos para un consultorio de estética vascular/láser. Full-stack SPA (React + Express) pensada para uso local/offline en un único consultorio, sin backend de base de datos: todo el estado vive en `localStorage` del navegador. El personal entra con una pantalla de login; la sesión se valida en el servidor.
 
 ## Funcionalidades principales
 
@@ -15,7 +15,7 @@ Sistema de gestión de turnos para un consultorio de estética vascular/láser. 
 ## Stack tecnológico
 
 - **Frontend**: React 19 + TypeScript, Vite, Tailwind CSS v4, lucide-react, motion (animaciones), xlsx (lectura/escritura de Excel).
-- **Backend**: Express 4 + `tsx`, sirviendo el frontend (vía Vite en dev, estático en prod) y un endpoint de salud (`/api/health`). No hay base de datos: la persistencia real es `localStorage` en el navegador de quien usa la app.
+- **Backend**: Express 4 + `tsx`, sirviendo el frontend (vía Vite en dev, estático en prod), autenticación de sesión (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`) y un endpoint de salud (`/api/health`). Los respaldos en servidor (`/api/backup/*`) exigen sesión. No hay base de datos: la persistencia real es `localStorage` en el navegador de quien usa la app.
 - **Testing**: Vitest (lógica de negocio) y Playwright (flujos end-to-end en navegador).
 
 ## Instalación
@@ -34,7 +34,20 @@ npm start          # sirve el build de producción
 
 ## Variables de entorno
 
-No son necesarias para ejecutar la app: la agenda funciona enteramente con `localStorage`, sin llamadas a APIs externas. `.env.example` documenta variables (`GEMINI_API_KEY`, `APP_URL`) heredadas de la plantilla original de AI Studio; ninguna es utilizada actualmente por el código.
+Copiá `.env.example` a `.env` y definí las credenciales del consultorio:
+
+| Variable | Uso |
+| --- | --- |
+| `ADMIN_USERNAME` | Usuario de ingreso (por defecto `admin`). |
+| `ADMIN_PASSWORD` | Contraseña del personal. **Obligatoria en producción** (`NODE_ENV=production`). En desarrollo, si no se define, se usa una clave local documentada abajo. |
+| `TRUST_PROXY` | Poné `1` si la app está detrás de un reverse proxy, para que el límite de intentos de login use la IP real. |
+| `PORT` | Puerto HTTP (por defecto `3000`). |
+
+En desarrollo local, si no hay `.env`, el usuario es `admin` y la contraseña es `EsteticaLaser.2026`. Cambiala antes de publicar.
+
+La sesión dura 8 horas, viaja en una cookie `HttpOnly` + `SameSite=Lax` (y `Secure` en producción). Tras 5 intentos fallidos desde la misma IP, el ingreso se bloquea 15 minutos. Los links de confirmar/cancelar turno que recibe el paciente por WhatsApp siguen funcionando sin login y no muestran la agenda.
+
+`.env.example` también documenta `GEMINI_API_KEY` y `APP_URL` heredadas de la plantilla original de AI Studio; no las usa el código actual.
 
 ## Testing
 
@@ -44,8 +57,8 @@ npm run test:e2e   # tests end-to-end en navegador (Playwright)
 npm run test:all   # ambas suites
 ```
 
-- **Unitarios** (`tests/unit/`): cálculo de horarios/duraciones, resumen financiero diario, normalización de teléfonos y generación de recordatorios de WhatsApp, generación de CSV, e importación/parseo de planillas de pacientes (incluye detección de encabezados, celdas combinadas y fechas en distintos formatos).
-- **End-to-end** (`tests/e2e/`, requieren `npx playwright install chromium` una sola vez): alta/edición/borrado de turnos y pacientes, detección de solapamiento de horarios, reglas de negocio (no agendar en día no laborable ni en el pasado), persistencia tras recargar la página, resumen financiero, backup manual y verificación de que la app es usable en mobile sin overflow horizontal.
+- **Unitarios** (`tests/unit/`): cálculo de horarios/duraciones, resumen financiero diario, normalización de teléfonos y generación de recordatorios de WhatsApp, generación de CSV, importación/parseo de planillas de pacientes, y autenticación (hash de contraseña, cookie de sesión y bloqueo por intentos fallidos).
+- **End-to-end** (`tests/e2e/`, requieren `npx playwright install chromium` una sola vez): ingreso con usuario y contraseña, alta/edición/borrado de turnos y pacientes, detección de solapamiento de horarios, reglas de negocio (no agendar en día no laborable ni en el pasado), persistencia tras recargar la página, resumen financiero, backup manual y verificación de que la app es usable en mobile sin overflow horizontal.
 
 ## Build
 

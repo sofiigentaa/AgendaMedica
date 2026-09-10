@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Download,
   Clock,
-  FileSpreadsheet
+  FileSpreadsheet,
+  LogOut
 } from 'lucide-react';
 import EsteticaLaserLogo from './EsteticaLaserLogo';
 import { getNextWorkingDay, getPrevWorkingDay, getTodayDateString, isClinicWorkingDay, getHolidayInfo, getDayOfWeekName } from '../utils/storage';
@@ -28,6 +29,8 @@ interface NavbarProps {
   onOpenImportExcel?: () => void;
   pendingRemindersCount: number;
   holidays?: HolidayOrNonWorkingDay[];
+  staffUsername?: string;
+  onLogout?: () => void;
 }
 
 export default function Navbar({
@@ -40,7 +43,9 @@ export default function Navbar({
   onDownloadCsv,
   onOpenImportExcel,
   pendingRemindersCount,
-  holidays = []
+  holidays = [],
+  staffUsername,
+  onLogout
 }: NavbarProps) {
   const [timeString, setTimeString] = useState('');
   const [dateWarning, setDateWarning] = useState<string | null>(null);
@@ -139,6 +144,18 @@ export default function Navbar({
                 <span>{timeString}</span>
               </div>
             </div>
+            {onLogout && (
+              <button
+                id="btn-logout-mobile"
+                type="button"
+                onClick={onLogout}
+                className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 hover:text-white hover:border-rose-400/50 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -203,9 +220,21 @@ export default function Navbar({
               <span>{timeString} hs</span>
             </div>
             <div className="text-[10px] text-teal-300/80 font-medium">
-              Consultorios Médicos
+              {staffUsername ? `Sesión: ${staffUsername}` : 'Consultorios Médicos'}
             </div>
           </div>
+          {onLogout && (
+            <button
+              id="btn-logout"
+              type="button"
+              onClick={onLogout}
+              className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 hover:border-rose-400/50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Salir</span>
+            </button>
+          )}
         </div>
       </div>
 
