@@ -49,13 +49,13 @@ export function freeWorkingDayDateString(): string {
 export async function loginAsStaff(page: Page) {
   await page.goto('/');
   const loginForm = page.locator('#login-form');
-  const agendaTab = page.locator('#tab-agenda');
-  await loginForm.or(agendaTab).waitFor({ state: 'visible' });
+  const signedInMarker = page.locator('#input-current-date');
+  await loginForm.or(signedInMarker).waitFor({ state: 'visible' });
   if (await loginForm.isVisible()) {
     await page.locator('#login-username').fill(STAFF_USERNAME);
     await page.locator('#login-password').fill(STAFF_PASSWORD);
     await page.locator('#btn-login').click();
-    await agendaTab.waitFor({ state: 'visible' });
+    await signedInMarker.waitFor({ state: 'visible' });
   }
 }
 
@@ -65,7 +65,7 @@ export async function resetAppState(page: Page) {
   await loginAsStaff(page);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.locator('#tab-agenda').waitFor({ state: 'visible' });
+  await page.locator('#input-current-date').waitFor({ state: 'visible' });
 }
 
 export async function goToDate(page: Page, dateStr: string) {
