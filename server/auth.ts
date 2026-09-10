@@ -81,7 +81,13 @@ export function createAuthRouter(): Router {
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      // 'strict' rather than 'lax': the app is always navigated to directly
+      // (typed URL / bookmark / WhatsApp opens a *different*, cookie-less
+      // public route), never arrived at via a cross-site link that needs the
+      // session cookie attached — so there's no legitimate case to weaken
+      // this for, and 'strict' closes off a class of CSRF against the
+      // staff-only API that 'lax' would still allow via top-level GET nav.
+      sameSite: 'strict',
       maxAge: SESSION_HOURS * 60 * 60 * 1000
     });
     res.json({ success: true });
