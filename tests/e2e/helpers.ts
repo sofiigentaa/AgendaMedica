@@ -3,6 +3,9 @@ import type { Page } from '@playwright/test';
 // Mirrors CLINIC_WORKING_DAYS in src/utils/storage.ts (Mon, Tue, Fri).
 export const CLINIC_WORKING_DAYS = [1, 2, 5];
 
+export const STAFF_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+export const STAFF_PASSWORD = process.env.ADMIN_PASSWORD || 'EsteticaLaser.2026';
+
 export function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -43,12 +46,26 @@ export function freeWorkingDayDateString(): string {
   return toISODate(nextWorkingDayFrom(seedDate));
 }
 
+export async function loginAsStaff(page: Page) {
+  await page.goto('/');
+  const loginForm = page.locator('#login-form');
+  const signedInMarker = page.locator('#input-current-date');
+  await loginForm.or(signedInMarker).waitFor({ state: 'visible' });
+  if (await loginForm.isVisible()) {
+    await page.locator('#login-username').fill(STAFF_USERNAME);
+    await page.locator('#login-password').fill(STAFF_PASSWORD);
+    await page.locator('#btn-login').click();
+    await signedInMarker.waitFor({ state: 'visible' });
+  }
+}
+
 /** Loads the app with a clean localStorage so every test starts from the
  * same seeded demo data instead of leftovers from a previous test. */
 export async function resetAppState(page: Page) {
-  await page.goto('/');
+  await loginAsStaff(page);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await page.locator('#input-current-date').waitFor({ state: 'visible' });
 }
 
 export async function goToDate(page: Page, dateStr: string) {

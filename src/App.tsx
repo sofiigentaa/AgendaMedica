@@ -24,6 +24,7 @@ import {
 import { exportFullBackupPackage, generateAppointmentsCSV, triggerFileDownload } from './utils/export';
 import { INITIAL_PATIENTS, getInitialAppointments } from './utils/storage';
 import Navbar from './components/Navbar';
+import LoginScreen from './components/LoginScreen';
 import CalendarView from './components/CalendarView';
 import DailyFinancialSummary from './components/DailyFinancialSummary';
 import PatientManager from './components/PatientManager';
@@ -34,6 +35,7 @@ import PrintDailyScheduleModal from './components/PrintDailyScheduleModal';
 import ImportPatientsModal from './components/ImportPatientsModal';
 import ResetAgendaModal from './components/ResetAgendaModal';
 import MobileBottomNav from './components/MobileBottomNav';
+import { fetchCurrentSession, logoutRequest } from './utils/authClient';
 
 // BUG-20 / BUG-21: pantalla mínima y aislada que ve el PACIENTE al tocar el
 // link de "Confirmar" o "Cancelar" del mensaje de WhatsApp. No importa,
@@ -134,7 +136,68 @@ export default function App() {
     return <PatientOnlyActionRoute {...patientActionParams} />;
   }
 
-  return <AdminApp />;
+  return <AuthenticatedAdmin />;
+}
+
+function AuthenticatedAdmin() {
+  const [authState, setAuthState] = useState<'loading' | 'guest' | 'in'>('loading');
+  const [staffUsername, setStaffUsername] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCurrentSession().then((user) => {
+      if (cancelled) return;
+      if (user) {
+        setStaffUsername(user.username);
+        setAuthState('in');
+      } else {
+        setAuthState('guest');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authState !== 'in') return;
+    const ping = window.setInterval(() => {
+      fetchCurrentSession().then((user) => {
+        if (!user) {
+          setStaffUsername('');
+          setAuthState('guest');
+        }
+      });
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(ping);
+  }, [authState]);
+
+  const handleLogout = async () => {
+    await logoutRequest();
+    setStaffUsername('');
+    setAuthState('guest');
+  };
+
+  if (authState === 'loading') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <p className="text-sm text-slate-400">Verificando sesión…</p>
+      </div>
+    );
+  }
+
+  if (authState === 'guest') {
+    return (
+      <LoginScreen
+        onSuccess={(username) => {
+          setStaffUsername(username);
+          setAuthState('in');
+        }}
+      />
+    );
+  }
+
+  return <AdminApp staffUsername={staffUsername} onLogout={handleLogout} />;
 }
 
 // Wrapper that loads/persists only what's needed to apply the confirm/cancel
@@ -173,7 +236,7 @@ function PatientOnlyActionRoute({ type, id }: { type: 'confirm' | 'cancel'; id: 
   return <PatientActionScreen type={type} appointment={appointment} />;
 }
 
-function AdminApp() {
+function AdminApp({ staffUsername, onLogout }: { staffUsername: string; onLogout: () => void }) {
   const [patients, setPatients] = useState<Patient[]>(() => loadPatients());
   const [appointments, setAppointments] = useState<Appointment[]>(() => loadAppointments());
   const [holidays, setHolidays] = useState<HolidayOrNonWorkingDay[]>(() => loadHolidays());
@@ -498,6 +561,8 @@ function AdminApp() {
         onOpenImportExcel={() => setIsImportModalOpen(true)}
         pendingRemindersCount={pendingRemindersToday}
         holidays={holidays}
+        staffUsername={staffUsername}
+        onLogout={onLogout}
       />
 
       {/* Main Content Area - with bottom padding for mobile navigation */}
