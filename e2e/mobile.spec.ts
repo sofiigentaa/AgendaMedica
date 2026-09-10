@@ -1,7 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test('navegación mobile usable: bottom nav, padrón y nuevo turno', async ({ page }) => {
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('e2e-seeded')) {
+      localStorage.clear();
+      sessionStorage.setItem('e2e-seeded', '1');
+    }
+  });
   await page.goto('/');
   await expect(page.getByText('Agenda Médica Rosario')).toBeVisible();
 

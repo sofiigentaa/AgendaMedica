@@ -17,7 +17,10 @@ function nextClinicIsoDate(): string {
 
 async function gotoFreshApp(page: Page) {
   await page.addInitScript(() => {
-    localStorage.clear();
+    if (!sessionStorage.getItem('e2e-seeded')) {
+      localStorage.clear();
+      sessionStorage.setItem('e2e-seeded', '1');
+    }
   });
   await page.goto('/');
   await expect(page.getByText('Agenda Médica Rosario')).toBeVisible();
