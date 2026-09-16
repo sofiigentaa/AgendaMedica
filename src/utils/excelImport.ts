@@ -1,58 +1,172 @@
 import * as XLSX from 'xlsx';
-import { Appointment, Patient, TreatmentType } from '../types';
-import { TREATMENTS, calculateEndTime, calculateDurationMinutes } from '../data/treatments';
-import { normalizeDateString } from './excelImport';
-
-export interface TurnoImportWarning {
-  sheet: string;
-  fecha: string;
-  detail: string;
-}
-
-export interface TurnosImportResult {
+import { Patient } from '../types';
+ 
+export interface ImportResult {
   success: boolean;
-  appointments: Appointment[];
-  warnings: TurnoImportWarning[];
+  patients: Patient[];
   errors: string[];
-  totalSlotsScanned: number;
+  totalRows: number;
   importedCount: number;
-  skippedNoPatientMatch: number;
 }
-
+ 
 /**
- * Same normalization used across excelImport.ts: strips accents, lowercases,
- * removes spaces/punctuation so header labels compare cleanly regardless of
- * capitalization or the exact punctuation used in the template
- * ("Nº Documento", "Hora de finalización", "Apellido, Nombre", etc.).
+ * Normalizes a birthdate value coming from an imported spreadsheet into the
+ * ISO "YYYY-MM-DD" format the app expects (required for <input type="date">
+ * to display it, and for the Excel/CSV exports to format it correctly).
+ * Handles three shapes seen in real-world sheets:
+ *  - Already ISO: "1990-04-15"
+ *  - Typed as text: "15/04/1990" or "15-04-1990"
+ *  - A genuine Excel date cell, which the reader hands back as a raw serial
+ *    number (e.g. "32948") instead of a readable date.
+ * Returns '' when the value can't be confidently parsed, rather than guessing.
+ */
+export function normalizeDateString(raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+ 
+  // Already ISO YYYY-MM-DD (allow single-digit month/day)
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split('-').map(Number);
+    if (y && m && d) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+ 
+  // DD/MM/YYYY or DD-MM-YYYY (2 or 4 digit year)
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dmy) {
+    const day = parseInt(dmy[1], 10);
+    const month = parseInt(dmy[2], 10);
+    let year = parseInt(dmy[3], 10);
+    if (year < 100) year += year < 50 ? 2000 : 1900;
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+ 
+  // Excel serial date number (real date cell, not typed as text)
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    const serial = parseFloat(trimmed);
+    if (serial > 1 && serial < 100000) {
+      const utcDays = Math.floor(serial - 25569);
+      const date = new Date(utcDays * 86400 * 1000);
+      if (!isNaN(date.getTime())) {
+        const y = date.getUTCFullYear();
+        if (y >= 1900 && y <= new Date().getFullYear()) {
+          return `${y}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+        }
+      }
+    }
+    return '';
+  }
+ 
+  return '';
+}
+ 
+/**
+ * Normalizes a header/candidate string for comparison: strips accents, lowercases,
+ * and removes spaces/punctuation so things like "Nº Documento", "Tel. Fijo" or
+ * "Apellido, Nombre" compare cleanly against plain keywords like "documento" or "apellido".
  */
 function normalizeKey(str: string): string {
   if (!str) return '';
   return str
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '') // strip accents
     .toLowerCase()
     .trim()
-    .replace(/[\s_\-.\/()[\]#:*,+]/g, '');
+    .replace(/[\s_\-\.\/\(\)\[\]#:\*,\+]/g, ''); // strip spaces/punctuation (including commas)
 }
-
-function normalizeDni(raw: string): string {
-  return (raw || '').replace(/\D/g, '');
-}
-
+ 
+const HEADER_HINT_KEYWORDS = [
+  'nombre',
+  'apellido',
+  'paciente',
+  'dni',
+  'documento',
+  'cedula',
+  'telefono',
+  'celular',
+  'whatsapp',
+  'email',
+  'correo',
+  'obrasocial',
+  'cobertura',
+  'prepaga'
+];
+ 
+// Columns that only ever appear on the daily Turnos/Agenda sheet (one row per
+// appointment), never on the Pacientes master list. If we see two or more of
+// these in the detected header row, this isn't the Pacientes sheet at all —
+// importing it as-is would create one "patient" per appointment instead of
+// one per actual person, and pull in fields (Tratamiento, Honorario, etc.)
+// that don't belong on a patient record.
+const AGENDA_ONLY_KEYWORDS = ['horario', 'tratamiento', 'duracion', 'honorario', 'horadefinalizacion', 'horafinalizacion'];
+ 
 /**
- * Copies merged-cell values down/across into every cell the merge covers,
- * same approach as excelImport.ts's expandMergedCells (duplicated here to
- * keep this module independent — patient and turno sheets are read from
- * separate XLSX.WorkSheet objects and never share a worksheet instance).
+ * Thrown when the detected header row belongs to the Turnos/Agenda sheet instead
+ * of the Pacientes sheet, so callers can surface a precise, actionable message
+ * instead of the generic "couldn't read the sheet" wrapping.
+ */
+export class WrongSheetError extends Error {}
+ 
+function assertIsPatientsSheet(headers: string[]): void {
+  const normalizedHeaders = headers.map((h) => normalizeKey(h));
+  const agendaMatches = AGENDA_ONLY_KEYWORDS.filter((kw) => normalizedHeaders.some((h) => h.includes(kw)));
+  if (agendaMatches.length >= 2) {
+    throw new WrongSheetError(
+      'Esta hoja parece ser la de Turnos/Agenda (tiene columnas como Horario, Tratamiento, Duración u Honorario), no la de Pacientes. ' +
+        'Seleccioná o pegá la hoja de Pacientes, la que tiene columnas como T Doc, N Doc, Email, Teléfono móvil, Teléfono fijo, Fecha de nacimiento y Cobertura médica.'
+    );
+  }
+}
+ 
+/**
+ * Scans the first ~10 non-empty rows of a sheet and returns the index of the row
+ * that looks most like a real column-header row (based on keyword matches), instead
+ * of blindly assuming row 1 is the header. This is what lets the importer survive
+ * sheets that have extra title/date rows above the real header (e.g. "Día / Fecha"
+ * and "MARTES / 03/02/2026" rows before the actual "Horario, Apellido y Nombre..." row).
+ */
+function detectHeaderRowIndex(rows: string[][]): number {
+  let bestIdx = 0;
+  let bestScore = 0;
+  const scanLimit = Math.min(10, rows.length);
+ 
+  for (let i = 0; i < scanLimit; i++) {
+    let score = 0;
+    rows[i].forEach((cell) => {
+      const norm = normalizeKey(cell);
+      if (!norm) return;
+      if (HEADER_HINT_KEYWORDS.some((kw) => norm.includes(kw))) score++;
+    });
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+ 
+  return bestIdx;
+}
+ 
+/**
+ * Google Sheets/Excel only stores a value in the TOP-LEFT cell of a merged range —
+ * every other cell it covers reads as empty, even though it visually looks filled
+ * in the sheet. This is very common in daily-agenda sheets where an appointment
+ * longer than one time slot has its name/patient cell merged across several rows.
+ * We copy the top-left value down (and across) into every cell the merge covers so
+ * those rows don't get treated as missing data.
  */
 function expandMergedCells(worksheet: XLSX.WorkSheet, raw2D: any[][]): void {
   const merges = worksheet['!merges'] as Array<{ s: { r: number; c: number }; e: { r: number; c: number } }> | undefined;
   if (!merges || merges.length === 0) return;
+ 
   merges.forEach((merge) => {
     const topLeftRow = raw2D[merge.s.r];
     if (!topLeftRow) return;
     const topLeftValue = topLeftRow[merge.s.c];
     if (topLeftValue === undefined || topLeftValue === null || topLeftValue === '') return;
+ 
     for (let r = merge.s.r; r <= merge.e.r; r++) {
       if (!raw2D[r]) raw2D[r] = [];
       for (let c = merge.s.c; c <= merge.e.c; c++) {
@@ -63,450 +177,453 @@ function expandMergedCells(worksheet: XLSX.WorkSheet, raw2D: any[][]): void {
     }
   });
 }
-
+ 
 /**
- * Converts a "Horario" / "Hora de finalización" cell into "HH:MM", handling
- * both a typed clock string ("14:30" / "14:30:00") and a genuine Excel time
- * cell (a fraction of a day, e.g. 0.604166... for 14:30). Returns '' if the
- * cell isn't recognizable as a time at all — this doubles as the signal that
- * a row isn't a real time-slot row (see scanning loop below).
+ * Converts a worksheet into an array of plain row objects, using smart header-row
+ * detection instead of assuming row 1 holds the column titles. Each returned row
+ * object carries a hidden (non-enumerable) __originalRow property so error messages
+ * can point at the real row number in the spreadsheet.
  */
-function normalizeClockTime(raw: string): string {
-  const trimmed = (raw || '').trim();
-  if (!trimmed) return '';
-
-  const hhmm = trimmed.match(/^(\d{1,2}):(\d{2})(:\d{2})?$/);
-  if (hhmm) {
-    const h = parseInt(hhmm[1], 10);
-    const m = parseInt(hhmm[2], 10);
-    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+export function worksheetToSmartRows(worksheet: XLSX.WorkSheet): any[] {
+  const raw2D: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+ 
+  // Remember, PER CELL, whether it was blank before we fill in merged-cell values.
+  // We only care about this for the name column(s) below: a row whose name cell was
+  // originally empty and only "gained" a value because a cell above it was vertically
+  // merged into it is a pure visual continuation row (e.g. the 2nd half of a 60-min
+  // appointment on a 30-min grid) — not an independent patient/turno — even though
+  // that same row may legitimately have its own "Horario" or other values. Other
+  // columns (Horario, Duración, etc.) are left alone; only the name-derived ghost
+  // rows get dropped.
+  const wasBlankBeforeMergeGrid: boolean[][] = raw2D.map((row) =>
+    (row || []).map((c) => c === undefined || c === null || String(c).trim() === '')
+  );
+ 
+  expandMergedCells(worksheet, raw2D);
+ 
+  const stringRows = raw2D.map((row) => (row || []).map((c) => (c !== undefined && c !== null ? String(c) : '')));
+ 
+  const nonEmptyRows = stringRows
+    .map((row, idx) => ({ row, originalRowIndex: idx, originalRowNumber: idx + 1 }))
+    .filter((r) => r.row.some((cell) => cell.trim().length > 0));
+ 
+  if (nonEmptyRows.length === 0) return [];
+ 
+  const headerIdx = detectHeaderRowIndex(nonEmptyRows.map((r) => r.row));
+  const headers = [...nonEmptyRows[headerIdx].row];
+ 
+  assertIsPatientsSheet(headers);
+ 
+  // Identify which column(s) hold the patient's name, so we can detect ghost rows.
+  let nameColIndices: number[] = [];
+  headers.forEach((h, colIdx) => {
+    const norm = normalizeKey(h);
+    if (norm && (norm.includes('nombre') || norm.includes('apellido') || norm.includes('paciente'))) {
+      nameColIndices.push(colIdx);
     }
-    return '';
-  }
-
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    const n = parseFloat(trimmed);
-    if (n >= 0 && n < 1) {
-      const totalMinutes = Math.round(n * 24 * 60);
-      const h = Math.floor(totalMinutes / 60) % 24;
-      const m = totalMinutes % 60;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    }
-  }
-
-  return '';
-}
-
-/**
- * Converts a "Duracion" cell into whole minutes. The template stores this as
- * a duration-shaped time value ("0:15:00" = 15 min), but also tolerates a
- * plain number of minutes typed directly, or an Excel duration serial
- * (fraction of a day).
- */
-function parseDurationMinutes(raw: string): number {
-  const trimmed = (raw || '').trim();
-  if (!trimmed) return 0;
-
-  const hhmmss = trimmed.match(/^(\d{1,3}):(\d{2})(:(\d{2}))?$/);
-  if (hhmmss) {
-    const h = parseInt(hhmmss[1], 10);
-    const m = parseInt(hhmmss[2], 10);
-    const s = hhmmss[4] ? parseInt(hhmmss[4], 10) : 0;
-    return Math.round(h * 60 + m + s / 60);
-  }
-
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    const n = parseFloat(trimmed);
-    // A bare number under 1 is almost certainly an Excel duration serial
-    // (fraction of a day); anything else is treated as literal minutes.
-    if (n > 0 && n < 1) return Math.round(n * 24 * 60);
-    if (n >= 1 && n <= 600) return Math.round(n);
-  }
-
-  return 0;
-}
-
-function parseHonorarios(raw: string): number {
-  const cleaned = (raw || '').replace(/[^\d.,-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
-}
-
-/** True when both header labels of a "Dia" / "Fecha" block-start row match. */
-function isDayFechaHeaderRow(row: string[]): boolean {
-  return normalizeKey(row[0]) === 'dia' && normalizeKey(row[1]) === 'fecha';
-}
-
-interface ColumnMap {
-  horario: number;
-  nombre: number;
-  tipoDoc: number;
-  nDocumento: number;
-  celular: number;
-  telFijo: number;
-  obraSocial: number;
-  tratamiento: number;
-  duracion: number;
-  horaFin: number;
-  honorario: number;
-}
-
-function mapHeaderColumns(headerRow: string[]): ColumnMap | null {
-  const find = (...keywords: string[]): number => {
-    for (let i = 0; i < headerRow.length; i++) {
-      const norm = normalizeKey(headerRow[i]);
-      if (!norm) continue;
-      if (keywords.some((kw) => norm.includes(kw))) return i;
-    }
-    return -1;
-  };
-
-  const horario = find('horario', 'hora');
-  const nombre = find('apellidonombre', 'nombreapellido', 'paciente');
-  if (horario === -1 || nombre === -1) return null;
-
-  return {
-    horario,
-    nombre,
-    tipoDoc: find('tipodoc'),
-    nDocumento: find('ndocumento', 'documento', 'dni'),
-    celular: find('celular', 'movil', 'whatsapp'),
-    telFijo: find('telfijo', 'telefonofijo'),
-    obraSocial: find('obrasocial', 'cobertura', 'prepaga'),
-    tratamiento: find('tratamiento'),
-    duracion: find('duracion'),
-    horaFin: find('horadefinalizacion', 'horafin', 'finalizacion'),
-    honorario: find('honorario', 'arancel', 'monto')
-  };
-}
-
-/**
- * Reads the "Variables" sheet (Tratamientos / Duración lookup table) into a
- * normalized-name → minutes map, used as a fallback whenever a turno row's
- * own "Duracion" cell is empty.
- */
-function buildDurationLookup(workbook: XLSX.WorkBook): Map<string, number> {
-  const lookup = new Map<string, number>();
-
-  for (const sheetName of workbook.SheetNames) {
-    const worksheet = workbook.Sheets[sheetName];
-    const raw2D: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-    if (raw2D.length === 0) continue;
-
-    for (let i = 0; i < Math.min(raw2D.length, 5); i++) {
-      const row = (raw2D[i] || []).map((c: any) => (c !== undefined && c !== null ? String(c) : ''));
-      const treatCol = row.findIndex((c) => normalizeKey(c).includes('tratamiento'));
-      const durCol = row.findIndex((c) => normalizeKey(c).includes('duracion'));
-      if (treatCol === -1 || durCol === -1) continue;
-
-      // Found the header row of the Variables sheet — read every row below it.
-      for (let r = i + 1; r < raw2D.length; r++) {
-        const dataRow = (raw2D[r] || []).map((c: any) => (c !== undefined && c !== null ? String(c) : ''));
-        const name = (dataRow[treatCol] || '').trim();
-        if (!name) continue;
-        const minutes = parseDurationMinutes(dataRow[durCol] || '');
-        if (minutes > 0) lookup.set(normalizeKey(name), minutes);
-      }
-      break;
+  });
+ 
+  // Fallback: many patient lists keep the full name in the leftmost column WITHOUT
+  // giving it a header title at all (it reads as blank). If no column's title
+  // mentioned "nombre"/"apellido"/"paciente", and column 0's header is blank, assume
+  // column 0 holds the name and label it so the rest of the logic (which matches by
+  // header keywords) picks it up as a combined name column.
+  if (nameColIndices.length === 0 && (!headers[0] || !headers[0].trim())) {
+    const sampleRows = nonEmptyRows.slice(headerIdx + 1, headerIdx + 11);
+    const looksLikeText = sampleRows.some((r) => /[a-zA-ZáéíóúÁÉÍÓÚñÑ]{2,}/.test(r.row[0] || ''));
+    if (looksLikeText) {
+      headers[0] = 'Nombre Completo';
+      nameColIndices = [0];
     }
   }
-
-  return lookup;
-}
-
-/** Fuzzy-matches a free-text treatment name against the app's fixed treatment list. */
-function matchTreatment(rawName: string): { id: TreatmentType; name: string; defaultFee: number } | null {
-  const norm = normalizeKey(rawName);
-  if (!norm) return null;
-  let best: { id: TreatmentType; name: string; defaultFee: number } | null = null;
-  let bestLen = 0;
-  for (const t of TREATMENTS) {
-    if (t.id === 'no_dar') continue;
-    const tNorm = normalizeKey(t.name);
-    if (tNorm === norm) return { id: t.id, name: t.name, defaultFee: t.defaultFee };
-    if (norm.includes(tNorm) || tNorm.includes(norm)) {
-      if (tNorm.length > bestLen) {
-        best = { id: t.id, name: t.name, defaultFee: t.defaultFee };
-        bestLen = tNorm.length;
-      }
-    }
-  }
-  return best;
-}
-
-/**
- * Parses the full Turnos/Agenda workbook: scans every sheet for repeating
- * "Dia" / "Fecha" day-blocks (one per day, each with its own header row and
- * a stack of time-slot rows below it — see the template's real layout), and
- * turns the occupied slots into Appointment records matched against the
- * existing patient list by DNI.
- *
- * Per the confirmed behaviour: a turno whose DNI isn't found in `patients`
- * is skipped (not created), and reported back as a warning so it can be
- * loaded by hand instead.
- */
-function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): TurnosImportResult {
-  try {
-    const data = new Uint8Array(buffer);
-    const workbook = XLSX.read(data, { type: 'array' });
-
-    const durationLookup = buildDurationLookup(workbook);
-    const patientByDni = new Map<string, Patient>();
-    patients.forEach((p) => {
-          const norm = normalizeDni(p.dni);
-          if (norm) patientByDni.set(norm, p);
-        });
-
-        const appointments: Appointment[] = [];
-        const warnings: TurnoImportWarning[] = [];
-        let totalSlotsScanned = 0;
-        let skippedNoPatientMatch = 0;
-
-        for (const sheetName of workbook.SheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const raw2D: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-          if (raw2D.length === 0) continue;
-          expandMergedCells(worksheet, raw2D);
-          const rows = raw2D.map((row) => (row || []).map((c: any) => (c !== undefined && c !== null ? String(c) : '')));
-
-          let i = 0;
-          while (i < rows.length) {
-            if (!isDayFechaHeaderRow(rows[i])) {
-              i++;
-              continue;
-            }
-
-            // rows[i] = ["Dia","Fecha"], rows[i+1] = ["VIERNES","02/01/2026"],
-            // rows[i+2] = column headers, rows[i+3..] = time-slot rows.
-            const dayNameRow = rows[i + 1] || [];
-            const fecha = normalizeDateString(dayNameRow[1] || '');
-            const headerRow = rows[i + 2] || [];
-            const columns = mapHeaderColumns(headerRow);
-
-            if (!fecha || !columns) {
-              // No pudimos leer este bloque con confianza; lo saltamos como
-              // advertencia en vez de arriesgarnos a interpretarlo mal.
-              warnings.push({
-                sheet: sheetName,
-                fecha: dayNameRow[1] || '(fecha no reconocida)',
-                detail: 'No se pudo leer la fecha o los encabezados de este bloque de día; se omitió por completo.'
-              });
-              i += 3;
-              continue;
-            }
-
-            let r = i + 3;
-            while (r < rows.length) {
-              const row = rows[r];
-              const horaInicio = normalizeClockTime(row[columns.horario] || '');
-              if (!horaInicio) break; // fin del bloque (fila Total, fila en blanco, o próximo Dia/Fecha)
-
-              totalSlotsScanned++;
-              const nombreCombinado = (row[columns.nombre] || '').trim();
-              if (!nombreCombinado) {
-                r++;
-                continue; // horario libre, sin turno cargado
-              }
-
-              const nDocumentoRaw = columns.nDocumento >= 0 ? row[columns.nDocumento] || '' : '';
-              const dniNorm = normalizeDni(nDocumentoRaw);
-              const matchedPatient = dniNorm ? patientByDni.get(dniNorm) : undefined;
-
-              if (!matchedPatient) {
-                skippedNoPatientMatch++;
-                warnings.push({
-                  sheet: sheetName,
-                  fecha,
-                  detail: `${horaInicio} — ${nombreCombinado}${
-                    nDocumentoRaw ? ` (Doc. ${nDocumentoRaw})` : ' (sin N° de Documento)'
-                  }: no se encontró un paciente con ese DNI en el Padrón. No se importó; cargalo a mano si corresponde.`
-                });
-                r++;
-                continue;
-              }
-
-              const tratamientoRaw = columns.tratamiento >= 0 ? row[columns.tratamiento] || '' : '';
-              const matchedTreatment = matchTreatment(tratamientoRaw);
-              const treatmentId: TreatmentType = matchedTreatment?.id || 'consulta';
-              const treatmentName = matchedTreatment?.name || 'Consulta Médica';
-              if (tratamientoRaw && !matchedTreatment) {
-                warnings.push({
-                  sheet: sheetName,
-                  fecha,
-                  detail: `${horaInicio} — ${nombreCombinado}: el tratamiento "${tratamientoRaw}" no coincide con ninguno de los tratamientos configurados; se importó como "Consulta Médica".`
-                });
-              }
-
-              const duracionCell = columns.duracion >= 0 ? row[columns.duracion] || '' : '';
-              const horaFinCell = columns.horaFin >= 0 ? normalizeClockTime(row[columns.horaFin] || '') : '';
-
-              let duracionMinutos = parseDurationMinutes(duracionCell);
-              let horaFin = horaFinCell;
-
-              if (duracionMinutos <= 0 && horaFin) {
-                duracionMinutos = calculateDurationMinutes(horaInicio, horaFin);
-              }
-              if (duracionMinutos <= 0 && tratamientoRaw) {
-                duracionMinutos = durationLookup.get(normalizeKey(tratamientoRaw)) || 0;
-              }
-              if (duracionMinutos <= 0) {
-                duracionMinutos = matchedTreatment
-                  ? TREATMENTS.find((t) => t.id === matchedTreatment.id)?.durationMinutes || 15
-                  : 15;
-              }
-              if (!horaFin) {
-                horaFin = calculateEndTime(horaInicio, duracionMinutos);
-              }
-
-              const honorariosCell = columns.honorario >= 0 ? row[columns.honorario] || '' : '';
-              const honorarios = parseHonorarios(honorariosCell) || matchedTreatment?.defaultFee || 0;
-
-              const telefono =
-                (columns.celular >= 0 ? row[columns.celular] : '') ||
-                (columns.telFijo >= 0 ? row[columns.telFijo] : '') ||
-                matchedPatient.telefono;
-
-              const now = new Date().toISOString();
-              appointments.push({
-                id: `turno-imp-${Date.now()}-${appointments.length}-${Math.random().toString(36).substr(2, 4)}`,
-                pacienteId: matchedPatient.id,
-                pacienteNombre: `${matchedPatient.apellido}, ${matchedPatient.nombre}`.replace(/^, /, ''),
-                pacienteDni: matchedPatient.dni,
-                pacienteTelefono: telefono || matchedPatient.telefono,
-                pacienteEmail: matchedPatient.email || '',
-                pacienteFechaNacimiento: matchedPatient.fechaNacimiento,
-                coberturaTipo: matchedPatient.coberturaTipo,
-                obraSocial: matchedPatient.obraSocial,
-                numeroAfiliado: matchedPatient.numeroAfiliado,
-                fecha,
-                horaInicio,
-                tratamientoId: treatmentId,
-                tratamientoNombre: treatmentName,
-                duracionMinutos,
-                horaFin,
-                honorarios,
-                estado: 'confirmado',
-                estadoPago: 'pendiente',
-                metodoPago: 'pendiente',
-                recordatorioEnviado: false,
-                createdAt: now,
-                updatedAt: now
-              });
-
-              r++;
-            }
-
-            i = r; // seguir escaneando desde donde terminó el bloque (fila Total / blanco / próximo Dia-Fecha)
-          }
-        }
-
-    return {
-      success: appointments.length > 0,
-      appointments,
-      warnings,
-      errors: appointments.length === 0 && warnings.length === 0
-        ? ['No se encontró ningún bloque de día reconocible (encabezados "Dia" / "Fecha") en ninguna hoja del archivo.']
-        : [],
-      totalSlotsScanned,
-      importedCount: appointments.length,
-      skippedNoPatientMatch
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      appointments: [],
-      warnings: [],
-      errors: [`Error al procesar el archivo Excel: ${err.message || 'Formato no soportado'}`],
-      totalSlotsScanned: 0,
-      importedCount: 0,
-      skippedNoPatientMatch: 0
-    };
-  }
-}
-
-/** Reads a local .xlsx/.xls file (from a file picker) and parses it. */
-export async function parseTurnosWorkbook(file: File, patients: Patient[]): Promise<TurnosImportResult> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(parseTurnosWorkbookBuffer(e.target?.result as ArrayBuffer, patients));
-    reader.onerror = () =>
-      resolve({
-        success: false,
-        appointments: [],
-        warnings: [],
-        errors: ['Error de lectura del archivo en el navegador.'],
-        totalSlotsScanned: 0,
-        importedCount: 0,
-        skippedNoPatientMatch: 0
-      });
-    reader.readAsArrayBuffer(file);
+ 
+  const dataEntries = nonEmptyRows.slice(headerIdx + 1).filter((entry) => {
+    if (nameColIndices.length === 0) return true; // no name column detected — don't filter
+    const blankRow = wasBlankBeforeMergeGrid[entry.originalRowIndex] || [];
+    const nameWasEntirelyInherited = nameColIndices.every((c) => blankRow[c] !== false);
+    // If every name-related cell in this row was blank before the merge fill, this
+    // row contributed no name data of its own — it's a continuation, not a new patient.
+    return !nameWasEntirelyInherited;
+  });
+ 
+  return dataEntries.map((entry) => {
+    const obj: any = {};
+    headers.forEach((h, colIdx) => {
+      const key = h && h.trim() ? h.trim() : `Columna${colIdx + 1}`;
+      // Avoid clobbering a repeated blank/duplicate header
+      const finalKey = obj.hasOwnProperty(key) ? `${key}_${colIdx}` : key;
+      obj[finalKey] = entry.row[colIdx] !== undefined ? entry.row[colIdx] : '';
+    });
+    Object.defineProperty(obj, '__originalRow', {
+      value: entry.originalRowNumber,
+      enumerable: false
+    });
+    return obj;
   });
 }
-
+ 
 /**
- * Downloads the FULL Google Sheets workbook (every tab: meses, Pacientes,
- * Variables) as a real multi-sheet .xlsx via Google's own export endpoint —
- * unlike the CSV export used for the Pacientes-only import, this pulls every
- * tab in one request, which is required here since turnos are spread across
- * one tab per month. Requires the sheet to be shared as "Cualquiera con el
- * enlace puede ver".
+ * Parses raw tabular rows into Patient records
  */
-export async function fetchTurnosWorkbookFromGoogleSheets(
-  sheetUrl: string,
-  patients: Patient[]
-): Promise<TurnosImportResult> {
-  const match = sheetUrl.trim().match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  const sheetId = match ? match[1] : null;
-
+export function parseRawRowsToPatients(rawRows: any[]): ImportResult {
+  if (!rawRows || rawRows.length === 0) {
+    return {
+      success: false,
+      patients: [],
+      errors: ['La planilla está vacía o no contiene filas con datos válidos.'],
+      totalRows: 0,
+      importedCount: 0
+    };
+  }
+ 
+  const parsedPatients: Patient[] = [];
+  const errors: string[] = [];
+ 
+  rawRows.forEach((row, index) => {
+    const rowNum = (row && row.__originalRow) || index + 2; // fallback: header assumed row 1
+ 
+    // Look for matching keys ignoring case, accents and spaces. `exclude` lets us
+    // skip columns that would otherwise false-positive match (e.g. "Tipo Doc."
+    // contains "doc" and would wrongly steal the DNI/document-number field).
+    const getField = (candidates: string[], exclude: string[] = []): string => {
+      for (const key of Object.keys(row)) {
+        const normalizedKey = normalizeKey(key);
+        if (exclude.some((ex) => normalizedKey.includes(ex))) continue;
+        for (const candidate of candidates) {
+          const normalizedCand = normalizeKey(candidate);
+          if (normalizedKey === normalizedCand || normalizedKey.includes(normalizedCand)) {
+            const val = row[key];
+            return val !== undefined && val !== null ? String(val).trim() : '';
+          }
+        }
+      }
+      return '';
+    };
+ 
+    // Find a single column that holds the FULL name, in one of two shapes:
+    //  a) header mentions BOTH "apellido" and "nombre" (e.g. "Apellido, Nombre")
+    //  b) header is a generic "full name" label (Nombre Completo, Paciente, etc.) —
+    //     this also covers the unlabeled leftmost column, which worksheetToSmartRows
+    //     renames to "Nombre Completo" when no other name column was found.
+    // This must be handled before the individual nombre/apellido lookups below,
+    // otherwise both could independently match the same column and end up with
+    // the exact same duplicated full-name value in each field.
+    let combinedNameKey: string | null = null;
+    for (const key of Object.keys(row)) {
+      const normalizedKey = normalizeKey(key);
+      if (normalizedKey.includes('apellido') && normalizedKey.includes('nombre')) {
+        combinedNameKey = key;
+        break;
+      }
+    }
+    if (!combinedNameKey) {
+      for (const key of Object.keys(row)) {
+        const normalizedKey = normalizeKey(key);
+        if (
+          normalizedKey.includes('nombrecompleto') ||
+          normalizedKey === 'paciente' ||
+          normalizedKey.includes('nombreyapellido') ||
+          normalizedKey.includes('apellidoynombre') ||
+          normalizedKey.includes('fullname')
+        ) {
+          combinedNameKey = key;
+          break;
+        }
+      }
+    }
+ 
+    let nombre = '';
+    let apellido = '';
+ 
+    if (combinedNameKey) {
+      const rawVal = row[combinedNameKey] !== undefined && row[combinedNameKey] !== null ? String(row[combinedNameKey]).trim() : '';
+      if (rawVal.includes(',')) {
+        // "Apellido, Nombre" format
+        const [ap, nom] = rawVal.split(',').map((s) => s.trim());
+        apellido = ap || '';
+        nombre = nom || '';
+      } else if (rawVal) {
+        // "Apellido Nombre" format (no comma, space-separated) — this app's sheets
+        // consistently list the surname FIRST (e.g. "Abaca Sandra" = Apellido
+        // "Abaca", Nombre "Sandra"), so the first word is the apellido and
+        // everything after it is the (possibly multi-word) nombre.
+        const parts = rawVal.split(' ').filter(Boolean);
+        if (parts.length > 1) {
+          apellido = parts[0];
+          nombre = parts.slice(1).join(' ');
+        } else {
+          nombre = rawVal;
+        }
+      }
+    } else {
+      nombre = getField(['nombre', 'nombres', 'firstname', 'name']);
+      apellido = getField(['apellido', 'apellidos', 'lastname', 'surname']);
+    }
+ 
+    const nombreCompleto = combinedNameKey
+      ? ''
+      : getField(['nombrecompleto', 'paciente', 'nombreyapellido', 'apellidoynombre', 'fullname']);
+ 
+    if (!nombre && !apellido && nombreCompleto) {
+      const parts = nombreCompleto.split(' ').filter(Boolean);
+      if (parts.length > 1) {
+        apellido = parts[0];
+        nombre = parts.slice(1).join(' ');
+      } else {
+        nombre = nombreCompleto;
+        apellido = '';
+      }
+    }
+ 
+    if (!nombre && !apellido) {
+      errors.push(`Fila ${rowNum}: Se omitió porque no tiene Nombre ni Apellido.`);
+      return;
+    }
+ 
+    const dni = getField(['dni', 'documento', 'cedula', 'identificacion', 'numdoc', 'doc'], ['tipo', 'tdoc']) || 'Sin DNI';
+    const telefono = getField(['telefono', 'tel', 'celular', 'whatsapp', 'movil', 'phone']) || '+54 9 341 000-0000';
+    const email = getField(['email', 'correo', 'mail']) || '';
+    const obraSocialRaw = getField(['obrasocial', 'cobertura', 'prepaga', 'mutua', 'seguro']) || 'Particular';
+    const numeroAfiliado = getField(['numeroafiliado', 'numafiliado', 'afiliado', 'credencial', 'nroafiliado']) || '';
+    const fechaNacimiento = normalizeDateString(getField(['fechanacimiento', 'nacimiento', 'fnac', 'birthdate']) || '');
+    const notas = getField(['notas', 'observaciones', 'antecedentes', 'comentarios', 'alergias']) || '';
+ 
+    const isParticular =
+      obraSocialRaw.toLowerCase().includes('part') ||
+      obraSocialRaw.toLowerCase().includes('sin') ||
+      obraSocialRaw.toLowerCase().includes('ninguna');
+ 
+    const newPatient: Patient = {
+      id: `pat-imp-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`,
+      nombre: nombre || 'Paciente',
+      apellido: apellido || '',
+      dni: dni,
+      telefono: telefono,
+      email: email,
+      fechaNacimiento: fechaNacimiento,
+      coberturaTipo: isParticular ? 'particular' : 'obra_social',
+      obraSocial: obraSocialRaw,
+      numeroAfiliado: numeroAfiliado,
+      notasMedicas: notas,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+ 
+    parsedPatients.push(newPatient);
+  });
+ 
+  return {
+    success: parsedPatients.length > 0,
+    patients: parsedPatients,
+    errors,
+    totalRows: rawRows.length,
+    importedCount: parsedPatients.length
+  };
+}
+ 
+/**
+ * Extracts Google Sheets document ID and GID from any Google Docs/Drive URL
+ */
+export function extractGoogleSheetsInfo(url: string): { sheetId: string | null; gid: string | null } {
+  try {
+    const trimmed = url.trim();
+    // Format: /spreadsheets/d/([a-zA-Z0-9-_]+)
+    const matchId = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    const sheetId = matchId ? matchId[1] : null;
+ 
+    // GID format: gid=([0-9]+)
+    const matchGid = trimmed.match(/[#&?]gid=([0-9]+)/);
+    const gid = matchGid ? matchGid[1] : '0';
+ 
+    return { sheetId, gid };
+  } catch {
+    return { sheetId: null, gid: null };
+  }
+}
+ 
+/**
+ * Fetches and parses a Google Sheets document via public export URL
+ */
+export async function fetchPatientsFromGoogleSheets(sheetUrl: string): Promise<ImportResult> {
+  const { sheetId, gid } = extractGoogleSheetsInfo(sheetUrl);
+ 
   if (!sheetId) {
     return {
       success: false,
-      appointments: [],
-      warnings: [],
-      errors: ['El enlace de Google Sheets configurado no es válido.'],
-      totalSlotsScanned: 0,
-      importedCount: 0,
-      skippedNoPatientMatch: 0
+      patients: [],
+      errors: [
+        'El enlace no parece ser una URL válida de Google Sheets (ej: https://docs.google.com/spreadsheets/d/...)'
+      ],
+      totalRows: 0,
+      importedCount: 0
     };
   }
-
-  try {
-    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
-    const response = await fetch(exportUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: no se pudo acceder a la hoja de cálculo.`);
+ 
+  // Google Sheets export endpoints to try
+  const exportUrls = [
+    `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid || 0}`,
+    `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid || 0}`
+  ];
+ 
+  let lastError = '';
+ 
+  for (const url of exportUrls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: No se pudo acceder a la hoja de cálculo.`);
+      }
+      const csvText = await response.text();
+ 
+      // Check if it returned an HTML login page instead of CSV
+      if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<html')) {
+        throw new Error(
+          'La hoja de Google Sheets es privada. Asegúrate de configurarla con "Cualquier persona con el enlace puede ver" en Google Drive/Sheets.'
+        );
+      }
+ 
+      // Read CSV text with XLSX
+      const workbook = XLSX.read(csvText, { type: 'string' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = worksheetToSmartRows(worksheet);
+ 
+      return parseRawRowsToPatients(rawRows);
+    } catch (err: any) {
+      if (err instanceof WrongSheetError) {
+        return {
+          success: false,
+          patients: [],
+          errors: [err.message],
+          totalRows: 0,
+          importedCount: 0
+        };
+      }
+      lastError = err.message || 'Error al conectar con Google Sheets';
     }
-    const buffer = await response.arrayBuffer();
-
-    // Si la hoja es privada, Google devuelve una página HTML de login en vez
-    // del archivo — se detecta mirando los primeros bytes antes de intentar
-    // leerla como Excel (que fallaría con un error mucho menos claro).
-    const head = new TextDecoder('utf-8', { fatal: false }).decode(buffer.slice(0, 15));
-    if (head.includes('<!DOCTYPE') || head.includes('<html')) {
-      return {
-        success: false,
-        appointments: [],
-        warnings: [],
-        errors: [
-          'La hoja de Google Sheets es privada. Configurala con "Cualquier persona con el enlace puede ver" en Google Drive/Sheets.'
-        ],
-        totalSlotsScanned: 0,
-        importedCount: 0,
-        skippedNoPatientMatch: 0
-      };
-    }
-
-    return parseTurnosWorkbookBuffer(buffer, patients);
-  } catch (err: any) {
-    return {
-      success: false,
-      appointments: [],
-      warnings: [],
-      errors: [`No se pudo descargar la hoja de Google Sheets: ${err.message || 'Error de conexión'}`],
-      totalSlotsScanned: 0,
-      importedCount: 0,
-      skippedNoPatientMatch: 0
-    };
   }
+ 
+  return {
+    success: false,
+    patients: [],
+    errors: [
+      `No se pudo leer la hoja de Google Sheets: ${lastError}`,
+      'Tip: En Google Sheets ve a "Compartir" y selecciona "Cualquier persona con el enlace (Lector)".'
+    ],
+    totalRows: 0,
+    importedCount: 0
+  };
 }
+ 
+/**
+ * Parses an Excel (.xlsx, .xls) or CSV file containing patient records.
+ * Supports flexible column naming (e.g. Nombre, Apellido, DNI, Telefono / Celular / WhatsApp, Email, Obra Social, etc.)
+ */
+export async function parsePatientsExcel(file: File): Promise<ImportResult> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+ 
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+ 
+        // Convert sheet to rows using smart header-row detection
+        const rawRows = worksheetToSmartRows(worksheet);
+        const result = parseRawRowsToPatients(rawRows);
+        resolve(result);
+      } catch (err: any) {
+        if (err instanceof WrongSheetError) {
+          resolve({
+            success: false,
+            patients: [],
+            errors: [err.message],
+            totalRows: 0,
+            importedCount: 0
+          });
+          return;
+        }
+        resolve({
+          success: false,
+          patients: [],
+          errors: [`Error al procesar el archivo Excel: ${err.message || 'Formato no soportado'}`],
+          totalRows: 0,
+          importedCount: 0
+        });
+      }
+    };
+ 
+    reader.onerror = () => {
+      resolve({
+        success: false,
+        patients: [],
+        errors: ['Error de lectura del archivo en el navegador.'],
+        totalRows: 0,
+        importedCount: 0
+      });
+    };
+ 
+    reader.readAsArrayBuffer(file);
+  });
+}
+ 
+/**
+ * Creates an empty downloadable Excel template for importing patients
+ */
+export function downloadPatientsImportTemplate(): void {
+  const sampleData = [
+    {
+      'Nombre': 'María',
+      'Apellido': 'González',
+      'DNI': '35.420.198',
+      'Teléfono / WhatsApp': '+54 9 341 512-3456',
+      'Email': 'maria.gonzalez@gmail.com',
+      'Fecha Nacimiento (AAAA-MM-DD)': '1990-05-14',
+      'Obra Social o Prepaga': 'Swiss Medical Group',
+      'Nro de Afiliado': 'SM-98213-01',
+      'Observaciones / Antecedentes': 'Alergia a la penicilina. Tratamiento previo de várices.'
+    },
+    {
+      'Nombre': 'Lucas',
+      'Apellido': 'Martínez',
+      'DNI': '38.109.876',
+      'Teléfono / WhatsApp': '+54 9 341 698-7744',
+      'Email': 'lucas.martinez@hotmail.com',
+      'Fecha Nacimiento (AAAA-MM-DD)': '1994-11-20',
+      'Obra Social o Prepaga': 'Particular',
+      'Nro de Afiliado': '',
+      'Observaciones / Antecedentes': 'Consulta estética por telangiectasias alares.'
+    },
+    {
+      'Nombre': 'Sofía',
+      'Apellido': 'Álvarez',
+      'DNI': '40.765.432',
+      'Teléfono / WhatsApp': '+54 9 341 455-8899',
+      'Email': 'sofia.alvarez@yahoo.com.ar',
+      'Fecha Nacimiento (AAAA-MM-DD)': '1997-03-08',
+      'Obra Social o Prepaga': 'La Segunda ART / Salud',
+      'Nro de Afiliado': 'LS-440291-B',
+      'Observaciones / Antecedentes': 'Eco Doppler programado.'
+    }
+  ];
+ 
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla Pacientes');
+ 
+  // Generate Excel buffer
+  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+ 
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Plantilla_Importar_Pacientes_Rosario.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+ 

@@ -246,190 +246,191 @@ function matchTreatment(rawName: string): { id: TreatmentType; name: string; def
  * is skipped (not created), and reported back as a warning so it can be
  * loaded by hand instead.
  */
+function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): TurnosImportResult {
+  try {
+    const data = new Uint8Array(buffer);
+    const workbook = XLSX.read(data, { type: 'array' });
+
+    const durationLookup = buildDurationLookup(workbook);
+    const patientByDni = new Map<string, Patient>();
+    patients.forEach((p) => {
+      const norm = normalizeDni(p.dni);
+      if (norm) patientByDni.set(norm, p);
+    });
+
+    const appointments: Appointment[] = [];
+    const warnings: TurnoImportWarning[] = [];
+    let totalSlotsScanned = 0;
+    let skippedNoPatientMatch = 0;
+
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      const raw2D: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      if (raw2D.length === 0) continue;
+      expandMergedCells(worksheet, raw2D);
+      const rows = raw2D.map((row) => (row || []).map((c: any) => (c !== undefined && c !== null ? String(c) : '')));
+
+      let i = 0;
+      while (i < rows.length) {
+        if (!isDayFechaHeaderRow(rows[i])) {
+          i++;
+          continue;
+        }
+
+        // rows[i] = ["Dia","Fecha"], rows[i+1] = ["VIERNES","02/01/2026"],
+        // rows[i+2] = column headers, rows[i+3..] = time-slot rows.
+        const dayNameRow = rows[i + 1] || [];
+        const fecha = normalizeDateString(dayNameRow[1] || '');
+        const headerRow = rows[i + 2] || [];
+        const columns = mapHeaderColumns(headerRow);
+
+        if (!fecha || !columns) {
+          // No pudimos leer este bloque con confianza; lo saltamos como
+          // advertencia en vez de arriesgarnos a interpretarlo mal.
+          warnings.push({
+            sheet: sheetName,
+            fecha: dayNameRow[1] || '(fecha no reconocida)',
+            detail: 'No se pudo leer la fecha o los encabezados de este bloque de día; se omitió por completo.'
+          });
+          i += 3;
+          continue;
+        }
+
+        let r = i + 3;
+        while (r < rows.length) {
+          const row = rows[r];
+          const horaInicio = normalizeClockTime(row[columns.horario] || '');
+          if (!horaInicio) break; // fin del bloque (fila Total, fila en blanco, o próximo Dia/Fecha)
+
+          totalSlotsScanned++;
+          const nombreCombinado = (row[columns.nombre] || '').trim();
+          if (!nombreCombinado) {
+            r++;
+            continue; // horario libre, sin turno cargado
+          }
+
+          const nDocumentoRaw = columns.nDocumento >= 0 ? row[columns.nDocumento] || '' : '';
+          const dniNorm = normalizeDni(nDocumentoRaw);
+          const matchedPatient = dniNorm ? patientByDni.get(dniNorm) : undefined;
+
+          if (!matchedPatient) {
+            skippedNoPatientMatch++;
+            warnings.push({
+              sheet: sheetName,
+              fecha,
+              detail: `${horaInicio} — ${nombreCombinado}${
+                nDocumentoRaw ? ` (Doc. ${nDocumentoRaw})` : ' (sin N° de Documento)'
+              }: no se encontró un paciente con ese DNI en el Padrón. No se importó; cargalo a mano si corresponde.`
+            });
+            r++;
+            continue;
+          }
+
+          const tratamientoRaw = columns.tratamiento >= 0 ? row[columns.tratamiento] || '' : '';
+          const matchedTreatment = matchTreatment(tratamientoRaw);
+          const treatmentId: TreatmentType = matchedTreatment?.id || 'consulta';
+          const treatmentName = matchedTreatment?.name || 'Consulta Médica';
+          if (tratamientoRaw && !matchedTreatment) {
+            warnings.push({
+              sheet: sheetName,
+              fecha,
+              detail: `${horaInicio} — ${nombreCombinado}: el tratamiento "${tratamientoRaw}" no coincide con ninguno de los tratamientos configurados; se importó como "Consulta Médica".`
+            });
+          }
+
+          const duracionCell = columns.duracion >= 0 ? row[columns.duracion] || '' : '';
+          const horaFinCell = columns.horaFin >= 0 ? normalizeClockTime(row[columns.horaFin] || '') : '';
+
+          let duracionMinutos = parseDurationMinutes(duracionCell);
+          let horaFin = horaFinCell;
+
+          if (duracionMinutos <= 0 && horaFin) {
+            duracionMinutos = calculateDurationMinutes(horaInicio, horaFin);
+          }
+          if (duracionMinutos <= 0 && tratamientoRaw) {
+            duracionMinutos = durationLookup.get(normalizeKey(tratamientoRaw)) || 0;
+          }
+          if (duracionMinutos <= 0) {
+            duracionMinutos = matchedTreatment
+              ? TREATMENTS.find((t) => t.id === matchedTreatment.id)?.durationMinutes || 15
+              : 15;
+          }
+          if (!horaFin) {
+            horaFin = calculateEndTime(horaInicio, duracionMinutos);
+          }
+
+          const honorariosCell = columns.honorario >= 0 ? row[columns.honorario] || '' : '';
+          const honorarios = parseHonorarios(honorariosCell) || matchedTreatment?.defaultFee || 0;
+
+          const telefono =
+            (columns.celular >= 0 ? row[columns.celular] : '') ||
+            (columns.telFijo >= 0 ? row[columns.telFijo] : '') ||
+            matchedPatient.telefono;
+
+          const now = new Date().toISOString();
+          appointments.push({
+            id: `turno-imp-${Date.now()}-${appointments.length}-${Math.random().toString(36).substr(2, 4)}`,
+            pacienteId: matchedPatient.id,
+            pacienteNombre: `${matchedPatient.apellido}, ${matchedPatient.nombre}`.replace(/^, /, ''),
+            pacienteDni: matchedPatient.dni,
+            pacienteTelefono: telefono || matchedPatient.telefono,
+            pacienteEmail: matchedPatient.email || '',
+            pacienteFechaNacimiento: matchedPatient.fechaNacimiento,
+            coberturaTipo: matchedPatient.coberturaTipo,
+            obraSocial: matchedPatient.obraSocial,
+            numeroAfiliado: matchedPatient.numeroAfiliado,
+            fecha,
+            horaInicio,
+            tratamientoId: treatmentId,
+            tratamientoNombre: treatmentName,
+            duracionMinutos,
+            horaFin,
+            honorarios,
+            estado: 'confirmado',
+            estadoPago: 'pendiente',
+            metodoPago: 'pendiente',
+            recordatorioEnviado: false,
+            createdAt: now,
+            updatedAt: now
+          });
+
+          r++;
+        }
+
+        i = r; // seguir escaneando desde donde terminó el bloque (fila Total / blanco / próximo Dia-Fecha)
+      }
+    }
+
+    return {
+      success: appointments.length > 0,
+      appointments,
+      warnings,
+      errors: appointments.length === 0 && warnings.length === 0
+        ? ['No se encontró ningún bloque de día reconocible (encabezados "Dia" / "Fecha") en ninguna hoja del archivo.']
+        : [],
+      totalSlotsScanned,
+      importedCount: appointments.length,
+      skippedNoPatientMatch
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      appointments: [],
+      warnings: [],
+      errors: [`Error al procesar el archivo Excel: ${err.message || 'Formato no soportado'}`],
+      totalSlotsScanned: 0,
+      importedCount: 0,
+      skippedNoPatientMatch: 0
+    };
+  }
+}
+
+/** Reads a local .xlsx/.xls file (from a file picker) and parses it. */
 export async function parseTurnosWorkbook(file: File, patients: Patient[]): Promise<TurnosImportResult> {
   return new Promise((resolve) => {
     const reader = new FileReader();
-
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-
-        const durationLookup = buildDurationLookup(workbook);
-        const patientByDni = new Map<string, Patient>();
-        patients.forEach((p) => {
-          const norm = normalizeDni(p.dni);
-          if (norm) patientByDni.set(norm, p);
-        });
-
-        const appointments: Appointment[] = [];
-        const warnings: TurnoImportWarning[] = [];
-        let totalSlotsScanned = 0;
-        let skippedNoPatientMatch = 0;
-
-        for (const sheetName of workbook.SheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const raw2D: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-          if (raw2D.length === 0) continue;
-          expandMergedCells(worksheet, raw2D);
-          const rows = raw2D.map((row) => (row || []).map((c: any) => (c !== undefined && c !== null ? String(c) : '')));
-
-          let i = 0;
-          while (i < rows.length) {
-            if (!isDayFechaHeaderRow(rows[i])) {
-              i++;
-              continue;
-            }
-
-            // rows[i] = ["Dia","Fecha"], rows[i+1] = ["VIERNES","02/01/2026"],
-            // rows[i+2] = column headers, rows[i+3..] = time-slot rows.
-            const dayNameRow = rows[i + 1] || [];
-            const fecha = normalizeDateString(dayNameRow[1] || '');
-            const headerRow = rows[i + 2] || [];
-            const columns = mapHeaderColumns(headerRow);
-
-            if (!fecha || !columns) {
-              // No pudimos leer este bloque con confianza; lo saltamos como
-              // advertencia en vez de arriesgarnos a interpretarlo mal.
-              warnings.push({
-                sheet: sheetName,
-                fecha: dayNameRow[1] || '(fecha no reconocida)',
-                detail: 'No se pudo leer la fecha o los encabezados de este bloque de día; se omitió por completo.'
-              });
-              i += 3;
-              continue;
-            }
-
-            let r = i + 3;
-            while (r < rows.length) {
-              const row = rows[r];
-              const horaInicio = normalizeClockTime(row[columns.horario] || '');
-              if (!horaInicio) break; // fin del bloque (fila Total, fila en blanco, o próximo Dia/Fecha)
-
-              totalSlotsScanned++;
-              const nombreCombinado = (row[columns.nombre] || '').trim();
-              if (!nombreCombinado) {
-                r++;
-                continue; // horario libre, sin turno cargado
-              }
-
-              const nDocumentoRaw = columns.nDocumento >= 0 ? row[columns.nDocumento] || '' : '';
-              const dniNorm = normalizeDni(nDocumentoRaw);
-              const matchedPatient = dniNorm ? patientByDni.get(dniNorm) : undefined;
-
-              if (!matchedPatient) {
-                skippedNoPatientMatch++;
-                warnings.push({
-                  sheet: sheetName,
-                  fecha,
-                  detail: `${horaInicio} — ${nombreCombinado}${
-                    nDocumentoRaw ? ` (Doc. ${nDocumentoRaw})` : ' (sin N° de Documento)'
-                  }: no se encontró un paciente con ese DNI en el Padrón. No se importó; cargalo a mano si corresponde.`
-                });
-                r++;
-                continue;
-              }
-
-              const tratamientoRaw = columns.tratamiento >= 0 ? row[columns.tratamiento] || '' : '';
-              const matchedTreatment = matchTreatment(tratamientoRaw);
-              const treatmentId: TreatmentType = matchedTreatment?.id || 'consulta';
-              const treatmentName = matchedTreatment?.name || 'Consulta Médica';
-              if (tratamientoRaw && !matchedTreatment) {
-                warnings.push({
-                  sheet: sheetName,
-                  fecha,
-                  detail: `${horaInicio} — ${nombreCombinado}: el tratamiento "${tratamientoRaw}" no coincide con ninguno de los tratamientos configurados; se importó como "Consulta Médica".`
-                });
-              }
-
-              const duracionCell = columns.duracion >= 0 ? row[columns.duracion] || '' : '';
-              const horaFinCell = columns.horaFin >= 0 ? normalizeClockTime(row[columns.horaFin] || '') : '';
-
-              let duracionMinutos = parseDurationMinutes(duracionCell);
-              let horaFin = horaFinCell;
-
-              if (duracionMinutos <= 0 && horaFin) {
-                duracionMinutos = calculateDurationMinutes(horaInicio, horaFin);
-              }
-              if (duracionMinutos <= 0 && tratamientoRaw) {
-                duracionMinutos = durationLookup.get(normalizeKey(tratamientoRaw)) || 0;
-              }
-              if (duracionMinutos <= 0) {
-                duracionMinutos = matchedTreatment
-                  ? TREATMENTS.find((t) => t.id === matchedTreatment.id)?.durationMinutes || 15
-                  : 15;
-              }
-              if (!horaFin) {
-                horaFin = calculateEndTime(horaInicio, duracionMinutos);
-              }
-
-              const honorariosCell = columns.honorario >= 0 ? row[columns.honorario] || '' : '';
-              const honorarios = parseHonorarios(honorariosCell) || matchedTreatment?.defaultFee || 0;
-
-              const telefono =
-                (columns.celular >= 0 ? row[columns.celular] : '') ||
-                (columns.telFijo >= 0 ? row[columns.telFijo] : '') ||
-                matchedPatient.telefono;
-
-              const now = new Date().toISOString();
-              appointments.push({
-                id: `turno-imp-${Date.now()}-${appointments.length}-${Math.random().toString(36).substr(2, 4)}`,
-                pacienteId: matchedPatient.id,
-                pacienteNombre: `${matchedPatient.apellido}, ${matchedPatient.nombre}`.replace(/^, /, ''),
-                pacienteDni: matchedPatient.dni,
-                pacienteTelefono: telefono || matchedPatient.telefono,
-                pacienteEmail: matchedPatient.email || '',
-                pacienteFechaNacimiento: matchedPatient.fechaNacimiento,
-                coberturaTipo: matchedPatient.coberturaTipo,
-                obraSocial: matchedPatient.obraSocial,
-                numeroAfiliado: matchedPatient.numeroAfiliado,
-                fecha,
-                horaInicio,
-                tratamientoId: treatmentId,
-                tratamientoNombre: treatmentName,
-                duracionMinutos,
-                horaFin,
-                honorarios,
-                estado: 'confirmado',
-                estadoPago: 'pendiente',
-                metodoPago: 'pendiente',
-                recordatorioEnviado: false,
-                createdAt: now,
-                updatedAt: now
-              });
-
-              r++;
-            }
-
-            i = r; // seguir escaneando desde donde terminó el bloque (fila Total / blanco / próximo Dia-Fecha)
-          }
-        }
-
-        resolve({
-          success: appointments.length > 0,
-          appointments,
-          warnings,
-          errors: appointments.length === 0 && warnings.length === 0
-            ? ['No se encontró ningún bloque de día reconocible (encabezados "Dia" / "Fecha") en ninguna hoja del archivo.']
-            : [],
-          totalSlotsScanned,
-          importedCount: appointments.length,
-          skippedNoPatientMatch
-        });
-      } catch (err: any) {
-        resolve({
-          success: false,
-          appointments: [],
-          warnings: [],
-          errors: [`Error al procesar el archivo Excel: ${err.message || 'Formato no soportado'}`],
-          totalSlotsScanned: 0,
-          importedCount: 0,
-          skippedNoPatientMatch: 0
-        });
-      }
-    };
-
-    reader.onerror = () => {
+    reader.onload = (e) => resolve(parseTurnosWorkbookBuffer(e.target?.result as ArrayBuffer, patients));
+    reader.onerror = () =>
       resolve({
         success: false,
         appointments: [],
@@ -439,8 +440,73 @@ export async function parseTurnosWorkbook(file: File, patients: Patient[]): Prom
         importedCount: 0,
         skippedNoPatientMatch: 0
       });
-    };
-
     reader.readAsArrayBuffer(file);
   });
+}
+
+/**
+ * Downloads the FULL Google Sheets workbook (every tab: meses, Pacientes,
+ * Variables) as a real multi-sheet .xlsx via Google's own export endpoint —
+ * unlike the CSV export used for the Pacientes-only import, this pulls every
+ * tab in one request, which is required here since turnos are spread across
+ * one tab per month. Requires the sheet to be shared as "Cualquiera con el
+ * enlace puede ver".
+ */
+export async function fetchTurnosWorkbookFromGoogleSheets(
+  sheetUrl: string,
+  patients: Patient[]
+): Promise<TurnosImportResult> {
+  const match = sheetUrl.trim().match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  const sheetId = match ? match[1] : null;
+
+  if (!sheetId) {
+    return {
+      success: false,
+      appointments: [],
+      warnings: [],
+      errors: ['El enlace de Google Sheets configurado no es válido.'],
+      totalSlotsScanned: 0,
+      importedCount: 0,
+      skippedNoPatientMatch: 0
+    };
+  }
+
+  try {
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+    const response = await fetch(exportUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: no se pudo acceder a la hoja de cálculo.`);
+    }
+    const buffer = await response.arrayBuffer();
+
+    // Si la hoja es privada, Google devuelve una página HTML de login en vez
+    // del archivo — se detecta mirando los primeros bytes antes de intentar
+    // leerla como Excel (que fallaría con un error mucho menos claro).
+    const head = new TextDecoder('utf-8', { fatal: false }).decode(buffer.slice(0, 15));
+    if (head.includes('<!DOCTYPE') || head.includes('<html')) {
+      return {
+        success: false,
+        appointments: [],
+        warnings: [],
+        errors: [
+          'La hoja de Google Sheets es privada. Configurala con "Cualquier persona con el enlace puede ver" en Google Drive/Sheets.'
+        ],
+        totalSlotsScanned: 0,
+        importedCount: 0,
+        skippedNoPatientMatch: 0
+      };
+    }
+
+    return parseTurnosWorkbookBuffer(buffer, patients);
+  } catch (err: any) {
+    return {
+      success: false,
+      appointments: [],
+      warnings: [],
+      errors: [`No se pudo descargar la hoja de Google Sheets: ${err.message || 'Error de conexión'}`],
+      totalSlotsScanned: 0,
+      importedCount: 0,
+      skippedNoPatientMatch: 0
+    };
+  }
 }
