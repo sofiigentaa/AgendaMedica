@@ -20,7 +20,7 @@ import AppointmentModal from './components/AppointmentModal';
 import PatientModal from './components/PatientModal';
 import PrintDailyScheduleModal from './components/PrintDailyScheduleModal';
 import ImportPatientsModal from './components/ImportPatientsModal';
-import ImportTurnosModal from './components/ImportTurnosModal';
+import { parseTurnosWorkbook } from './utils/excelImportTurnos';
 import ResetAgendaModal from './components/ResetAgendaModal';
 import MobileBottomNav from './components/MobileBottomNav';
 import LoginScreen from './components/LoginScreen';
@@ -223,7 +223,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [isImportTurnosModalOpen, setIsImportTurnosModalOpen] = useState(false);
+  const [isSyncingTurnos, setIsSyncingTurnos] = useState(false);
   const [isResetAgendaModalOpen, setIsResetAgendaModalOpen] = useState(false);
   // BUG-09 / BUG-10: notificación genérica para acciones administrativas
   // (vaciar turnos, vaciar todo, restablecer con datos demo, errores de red).
@@ -448,27 +448,50 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  // Sincronización de turnos en un solo click: se elige el archivo, se lee y
+  // se guarda todo de una, sin pantalla intermedia de revisión/confirmación.
   // No hay endpoint de creación masiva de turnos en el backend (a diferencia
   // de bulkCreatePatients), así que se guardan de a uno, secuencialmente, para
   // no saturar el servidor si la sincronización trae muchos turnos a la vez.
-  const handleImportTurnosCompleted = async (imported: Appointment[]) => {
-    const savedOnes: Appointment[] = [];
-    let failedCount = 0;
-    for (const appointment of imported) {
-      try {
-        const saved = await api.saveAppointment(appointment);
-        savedOnes.push(saved);
-      } catch {
-        failedCount++;
+  const handleSyncTurnosFile = async (file: File) => {
+    setIsSyncingTurnos(true);
+    try {
+      const parsed = await parseTurnosWorkbook(file, patients);
+
+      if (parsed.errors.length > 0) {
+        showError(parsed.errors[0]);
+        return;
       }
-    }
-    if (savedOnes.length > 0) {
-      setAppointments((prev) => [...prev, ...savedOnes]);
-    }
-    if (failedCount > 0) {
-      showError(
-        `Se importaron ${savedOnes.length} turno(s). ${failedCount} no se pudieron guardar (por ejemplo, por chocar con un turno u horario ya existente).`
-      );
+
+      const savedOnes: Appointment[] = [];
+      let failedToSaveCount = 0;
+      for (const appointment of parsed.appointments) {
+        try {
+          const saved = await api.saveAppointment(appointment);
+          savedOnes.push(saved);
+        } catch {
+          failedToSaveCount++;
+        }
+      }
+      if (savedOnes.length > 0) {
+        setAppointments((prev) => [...prev, ...savedOnes]);
+      }
+
+      const parts: string[] = [];
+      if (savedOnes.length > 0) parts.push(`${savedOnes.length} turno(s) sincronizado(s)`);
+      if (parsed.skippedNoPatientMatch > 0) {
+        parts.push(`${parsed.skippedNoPatientMatch} sin paciente coincidente en el Padrón`);
+      }
+      if (failedToSaveCount > 0) parts.push(`${failedToSaveCount} no se pudieron guardar`);
+
+      setAdminNotification({
+        message: parts.length > 0 ? parts.join(' • ') : 'No se encontraron turnos nuevos para sincronizar.',
+        type: savedOnes.length > 0 ? 'success' : 'danger'
+      });
+    } catch (err: any) {
+      showError(err.message || 'No se pudo sincronizar el archivo de turnos.');
+    } finally {
+      setIsSyncingTurnos(false);
     }
   };
 
@@ -578,7 +601,8 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         onDownloadCsv={handleDownloadCsv}
         onQuickBackup={handleQuickBackup}
         onOpenImportExcel={() => setIsImportModalOpen(true)}
-        onOpenImportTurnos={() => setIsImportTurnosModalOpen(true)}
+        onSyncTurnosFile={handleSyncTurnosFile}
+        isSyncingTurnos={isSyncingTurnos}
         pendingRemindersCount={pendingRemindersToday}
         holidays={holidays}
         onLogout={async () => {
@@ -740,14 +764,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         onClose={() => setIsImportModalOpen(false)}
         onImportCompleted={handleImportPatientsCompleted}
         existingPatientsCount={patients.length}
-      />
-
-      {/* Sync Turnos from Excel Template Modal */}
-      <ImportTurnosModal
-        isOpen={isImportTurnosModalOpen}
-        onClose={() => setIsImportTurnosModalOpen(false)}
-        onImportCompleted={handleImportTurnosCompleted}
-        patients={patients}
       />
 
       {/* Reset Agenda Modal */}
