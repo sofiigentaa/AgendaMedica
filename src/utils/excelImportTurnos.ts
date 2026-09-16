@@ -133,9 +133,23 @@ function parseHonorarios(raw: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-/** True when both header labels of a "Dia" / "Fecha" block-start row match. */
-function isDayFechaHeaderRow(row: string[]): boolean {
-  return normalizeKey(row[0]) === 'dia' && normalizeKey(row[1]) === 'fecha';
+/**
+ * Locates the "Dia" and "Fecha" header labels within a block-start row and
+ * returns their column positions, instead of assuming fixed columns 0/1 —
+ * the real template shifts these labels to different columns from sheet to
+ * sheet (e.g. column B/C in some months, B/F in others). The day-name and
+ * date VALUES on the row right below the header always line up with these
+ * same column indices, so the caller reads them from there.
+ */
+function findDiaFechaColumns(row: string[]): { diaCol: number; fechaCol: number } | null {
+  let diaCol = -1;
+  let fechaCol = -1;
+  for (let i = 0; i < row.length; i++) {
+    const norm = normalizeKey(row[i]);
+    if (norm === 'dia' && diaCol === -1) diaCol = i;
+    if (norm === 'fecha' && fechaCol === -1) fechaCol = i;
+  }
+  return diaCol === -1 || fechaCol === -1 ? null : { diaCol, fechaCol };
 }
 
 interface ColumnMap {
@@ -272,15 +286,17 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
 
       let i = 0;
       while (i < rows.length) {
-        if (!isDayFechaHeaderRow(rows[i])) {
+        const diaFechaCols = findDiaFechaColumns(rows[i]);
+        if (!diaFechaCols) {
           i++;
           continue;
         }
 
-        // rows[i] = ["Dia","Fecha"], rows[i+1] = ["VIERNES","02/01/2026"],
+        // rows[i] = [.., "Dia", .., "Fecha", ..], rows[i+1] = [.., "VIERNES", .., 46024, ..]
+        // (day-name/date values line up with the same columns as the labels above them),
         // rows[i+2] = column headers, rows[i+3..] = time-slot rows.
         const dayNameRow = rows[i + 1] || [];
-        const fecha = normalizeDateString(dayNameRow[1] || '');
+        const fecha = normalizeDateString(dayNameRow[diaFechaCols.fechaCol] || '');
         const headerRow = rows[i + 2] || [];
         const columns = mapHeaderColumns(headerRow);
 
