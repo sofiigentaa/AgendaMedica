@@ -12,6 +12,7 @@ import {
   Clock,
   FileSpreadsheet,
   CalendarSync,
+  RefreshCw,
   LogOut
 } from 'lucide-react';
 import EsteticaLaserLogo from './EsteticaLaserLogo';
@@ -28,7 +29,8 @@ interface NavbarProps {
   onDownloadCsv: () => void;
   onQuickBackup?: () => void;
   onOpenImportExcel?: () => void;
-  onOpenImportTurnos?: () => void;
+  onSyncTurnosFile?: (file: File) => void | Promise<void>;
+  isSyncingTurnos?: boolean;
   pendingRemindersCount: number;
   holidays?: HolidayOrNonWorkingDay[];
   onLogout?: () => void;
@@ -43,7 +45,8 @@ export default function Navbar({
   onOpenNewPatient,
   onDownloadCsv,
   onOpenImportExcel,
-  onOpenImportTurnos,
+  onSyncTurnosFile,
+  isSyncingTurnos,
   pendingRemindersCount,
   holidays = [],
   onLogout
@@ -51,6 +54,7 @@ export default function Navbar({
   const [timeString, setTimeString] = useState('');
   const [dateWarning, setDateWarning] = useState<string | null>(null);
   const headerRef = useRef<HTMLElement>(null);
+  const turnosFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const updateHeight = () => {
@@ -203,16 +207,37 @@ export default function Navbar({
             </button>
           )}
 
-          {onOpenImportTurnos && (
-            <button
-              id="btn-navbar-sync-turnos"
-              onClick={onOpenImportTurnos}
-              className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-slate-700 hover:border-amber-500/50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs"
-              title="Sincronizar turnos desde la plantilla de Excel de Agenda"
-            >
-              <CalendarSync className="w-3.5 h-3.5 text-amber-400" />
-              <span>Sincronizar con Plantilla de Excel</span>
-            </button>
+          {onSyncTurnosFile && (
+            <>
+              <input
+                ref={turnosFileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onSyncTurnosFile(file);
+                  // Permite elegir el mismo archivo dos veces seguidas (ej.
+                  // después de corregir algo en el Excel) sin que el navegador
+                  // ignore la segunda selección por ser "el mismo" archivo.
+                  e.target.value = '';
+                }}
+              />
+              <button
+                id="btn-navbar-sync-turnos"
+                onClick={() => turnosFileInputRef.current?.click()}
+                disabled={isSyncingTurnos}
+                className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-slate-700 hover:border-amber-500/50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Elegir el .xlsx de la Agenda y sincronizar los turnos automáticamente"
+              >
+                {isSyncingTurnos ? (
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                ) : (
+                  <CalendarSync className="w-3.5 h-3.5 text-amber-400" />
+                )}
+                <span>{isSyncingTurnos ? 'Sincronizando...' : 'Actualizar Turnos'}</span>
+              </button>
+            </>
           )}
 
           {onLogout && (
