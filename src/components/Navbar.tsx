@@ -11,6 +11,7 @@ import {
   Download,
   Clock,
   FileSpreadsheet,
+  CalendarSync,
   LogOut
 } from 'lucide-react';
 import EsteticaLaserLogo from './EsteticaLaserLogo';
@@ -27,6 +28,7 @@ interface NavbarProps {
   onDownloadCsv: () => void;
   onQuickBackup?: () => void;
   onOpenImportExcel?: () => void;
+  onOpenImportTurnos?: () => void;
   pendingRemindersCount: number;
   holidays?: HolidayOrNonWorkingDay[];
   onLogout?: () => void;
@@ -41,6 +43,7 @@ export default function Navbar({
   onOpenNewPatient,
   onDownloadCsv,
   onOpenImportExcel,
+  onOpenImportTurnos,
   pendingRemindersCount,
   holidays = [],
   onLogout
@@ -197,6 +200,18 @@ export default function Navbar({
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-teal-400" />
               <span>Importar Hoja Google Sheet</span>
+            </button>
+          )}
+
+          {onOpenImportTurnos && (
+            <button
+              id="btn-navbar-sync-turnos"
+              onClick={onOpenImportTurnos}
+              className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border border-slate-700 hover:border-amber-500/50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs"
+              title="Sincronizar turnos desde la plantilla de Excel de Agenda"
+            >
+              <CalendarSync className="w-3.5 h-3.5 text-amber-400" />
+              <span>Sincronizar con Plantilla de Excel</span>
             </button>
           )}
 
