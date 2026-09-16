@@ -20,7 +20,7 @@ import AppointmentModal from './components/AppointmentModal';
 import PatientModal from './components/PatientModal';
 import PrintDailyScheduleModal from './components/PrintDailyScheduleModal';
 import ImportPatientsModal from './components/ImportPatientsModal';
-import { parseTurnosWorkbook } from './utils/excelImportTurnos';
+import { fetchTurnosWorkbookFromGoogleSheets } from './utils/excelImportTurnos';
 import ResetAgendaModal from './components/ResetAgendaModal';
 import MobileBottomNav from './components/MobileBottomNav';
 import LoginScreen from './components/LoginScreen';
@@ -448,15 +448,20 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
-  // Sincronización de turnos en un solo click: se elige el archivo, se lee y
-  // se guarda todo de una, sin pantalla intermedia de revisión/confirmación.
+  // Sincronización de turnos en un solo click: siempre trae la MISMA hoja de
+  // Google Sheets (fija acá abajo), sin pedir que se elija un archivo cada
+  // vez. Si en algún momento cambia el enlace de la agenda, se actualiza
+  // solo esta constante.
+  const TURNOS_GOOGLE_SHEETS_URL =
+    'https://docs.google.com/spreadsheets/d/1Om2_MVe9QSDY2bv2CaFmamp_WFlZ9XFfpnBPdokn7KU/edit?usp=sharing';
+
   // No hay endpoint de creación masiva de turnos en el backend (a diferencia
   // de bulkCreatePatients), así que se guardan de a uno, secuencialmente, para
   // no saturar el servidor si la sincronización trae muchos turnos a la vez.
-  const handleSyncTurnosFile = async (file: File) => {
+  const handleSyncTurnos = async () => {
     setIsSyncingTurnos(true);
     try {
-      const parsed = await parseTurnosWorkbook(file, patients);
+      const parsed = await fetchTurnosWorkbookFromGoogleSheets(TURNOS_GOOGLE_SHEETS_URL, patients);
 
       if (parsed.errors.length > 0) {
         showError(parsed.errors[0]);
@@ -601,7 +606,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         onDownloadCsv={handleDownloadCsv}
         onQuickBackup={handleQuickBackup}
         onOpenImportExcel={() => setIsImportModalOpen(true)}
-        onSyncTurnosFile={handleSyncTurnosFile}
+        onSyncTurnos={handleSyncTurnos}
         isSyncingTurnos={isSyncingTurnos}
         pendingRemindersCount={pendingRemindersToday}
         holidays={holidays}
