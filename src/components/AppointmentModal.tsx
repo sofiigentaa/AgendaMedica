@@ -150,8 +150,12 @@ export default function AppointmentModal({
 
       if (initialIsBlocked) {
         setTratamientoId('no_dar');
-        setDuracionMinutos(30);
-        setHoraFin(calculateEndTime(suggestedTime || '', 30));
+        // La Hora Fin del bloqueo es 100% manual: al abrir un bloqueo nuevo
+        // no se precarga ninguna duración ni Hora Fin, queda vacío hasta que
+        // el usuario elija un atajo de "Duración rápida" o escriba el
+        // horario directamente.
+        setDuracionMinutos(0);
+        setHoraFin('');
         setHonorarios(0);
         setEstado('confirmado');
         setEstadoPago('bonificado');
