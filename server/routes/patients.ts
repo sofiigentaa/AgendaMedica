@@ -41,9 +41,19 @@ export function createPatientsRouter(): Router {
         continue;
       }
       if (normalizedDni) seenInBatch.add(normalizedDni);
+
+      // Cuando la fila no trae un DNI real, el texto por defecto ("Sin DNI")
+      // queda idéntico para todas esas filas — y como la columna dni es
+      // única en la base, la segunda fila sin DNI del mismo lote rompía el
+      // insert entero con un error interno (P2002). Se le agrega un sufijo
+      // único solo en ese caso puntual, nunca cuando sí hay un DNI real.
+      const dniValue = normalizedDni
+        ? String(item.dni || '')
+        : `${String(item.dni || 'Sin DNI')} (${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)})`;
+
       toCreate.push({
         id: item.id || undefined,
-        dni: String(item.dni || ''),
+        dni: dniValue,
         nombre: String(item.nombre || 'Paciente'),
         apellido: String(item.apellido || ''),
         email: item.email || '',
@@ -56,7 +66,25 @@ export function createPatientsRouter(): Router {
       });
     }
 
-    const created = await prisma.$transaction(toCreate.map((data) => prisma.patient.create({ data })));
+    let created: any[] = [];
+    try {
+      created = await prisma.$transaction(toCreate.map((data) => prisma.patient.create({ data })));
+    } catch (err: any) {
+      // Si algo en el lote choca contra la base (ej. un DNI real que ya
+      // existía y no se detectó por alguna variación de formato), la
+      // transacción entera se revierte y se perdían también los pacientes
+      // válidos. Como respaldo, se reintenta de a uno: lo que se pueda crear
+      // se crea, y solo la fila que realmente falla queda afuera.
+      created = [];
+      for (const data of toCreate) {
+        try {
+          const patient = await prisma.patient.create({ data });
+          created.push(patient);
+        } catch {
+          skipped.push(data.dni);
+        }
+      }
+    }
     res.json({ created, skippedDuplicateDni: skipped });
   });
 
