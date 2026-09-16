@@ -273,13 +273,16 @@ export default function AppointmentModal({
   };
 
   // When start time changes, re-calc end time.
-  // En modo bloqueo, si ya hay una Hora Fin manual válida (rango horario),
-  // se conserva ese horario de fin y se recalcula la duración a partir del
-  // nuevo inicio, en vez de pisar la Hora Fin con la duración vieja.
+  // En modo bloqueo, la Hora Fin es 100% manual: nunca se autocalcula ni se
+  // pisa al cambiar el inicio (esté vacía o ya cargada). Si ya hay una Hora
+  // Fin cargada, solo se actualiza la duración mostrada a partir del nuevo
+  // inicio.
   const handleStartTimeChange = (newStartTime: string) => {
     setHoraInicio(newStartTime);
-    if (isBlockedMode && horaFin && calculateDurationMinutes(newStartTime, horaFin) > 0) {
-      setDuracionMinutos(calculateDurationMinutes(newStartTime, horaFin));
+    if (isBlockedMode) {
+      if (horaFin && calculateDurationMinutes(newStartTime, horaFin) > 0) {
+        setDuracionMinutos(calculateDurationMinutes(newStartTime, horaFin));
+      }
     } else {
       setHoraFin(calculateEndTime(newStartTime, duracionMinutos));
     }
