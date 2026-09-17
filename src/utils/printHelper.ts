@@ -447,9 +447,7 @@ export function printDailyFinancialReport(
           <td class="text-right font-mono font-black" style="padding: 8px; font-size: 12px; color: #15803d;">
             ${formatCurrency(summary.totalHonorariosPercibidos)}
           </td>
-          <td class="text-center font-mono" style="padding: 8px; font-size: 9px; color: #475569;">
-            ${turnosCobrados} de ${totalTurnos}
-          </td>
+          <td style="padding: 8px;"></td>
         </tr>
       </tfoot>
     </table>

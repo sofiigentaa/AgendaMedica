@@ -253,9 +253,7 @@ export default function PrintDailyFinancialModal({
                     <td className="p-3 text-right font-mono text-sm text-emerald-700">
                       {formatCurrency(summary.totalHonorariosPercibidos)}
                     </td>
-                    <td className="p-3 text-center text-xs text-slate-600">
-                      {turnosCobrados} de {totalTurnos}
-                    </td>
+                    <td className="p-3"></td>
                   </tr>
                 </tfoot>
               </table>
