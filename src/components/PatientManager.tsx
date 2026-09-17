@@ -12,7 +12,6 @@ import {
   MessageCircle,
   FileText,
   CalendarPlus,
-  FileSpreadsheet,
   Upload,
   ArrowDownAZ,
   Undo2,
@@ -29,7 +28,6 @@ interface PatientManagerProps {
   onEditPatient: (patient: Patient) => void;
   onDeletePatient: (id: string) => void | Promise<void>;
   onBookAppointmentForPatient: (patient: Patient) => void;
-  onOpenImportExcel: () => void;
   lastImportBatch?: { ids: string[]; count: number; dismissed?: boolean } | null;
   onUndoLastImport?: () => void | Promise<void>;
   onDismissImportBanner?: () => void;
@@ -54,7 +52,6 @@ export default function PatientManager({
   onEditPatient,
   onDeletePatient,
   onBookAppointmentForPatient,
-  onOpenImportExcel,
   lastImportBatch = null,
   onUndoLastImport,
   onDismissImportBanner
@@ -154,16 +151,6 @@ export default function PatientManager({
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <button
-            id="btn-import-excel-patients"
-            onClick={onOpenImportExcel}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-300 shadow-2xs flex items-center gap-1.5 transition-all"
-            title="Importar pacientes desde un archivo Excel o CSV de otra agenda"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-teal-600" />
-            <span>Importar Hoja Google Sheet</span>
-          </button>
-
           <button
             id="btn-add-patient-main"
             onClick={onOpenNewPatient}

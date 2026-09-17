@@ -698,7 +698,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             }}
             onDeletePatient={handleDeletePatient}
             onBookAppointmentForPatient={handleBookAppointmentForPatient}
-            onOpenImportExcel={() => setIsImportModalOpen(true)}
             lastImportBatch={lastImportBatch}
             onDismissImportBanner={handleDismissImportBanner}
             onUndoLastImport={handleUndoLastImport}
