@@ -683,9 +683,9 @@ export default function CalendarView({
                     : 'border-slate-200 hover:border-teal-300'
                 }`}
               >
-                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div className="flex flex-col xl:grid xl:grid-cols-[1fr_auto] xl:items-center gap-4">
                   {/* Left: Time block, Patient & Treatment info */}
-                  <div className="flex items-start gap-3.5">
+                  <div className="flex items-start gap-3.5 min-w-0">
                     {/* Time block */}
                     <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-center shrink-0 min-w-[80px] shadow-xs">
                       <div className="text-sm font-black tracking-tight">{appt.horaInicio} hs</div>
@@ -696,7 +696,7 @@ export default function CalendarView({
                     </div>
 
                     {/* Patient and details */}
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-sm sm:text-base font-bold text-slate-900">
                           {appt.pacienteNombre}
