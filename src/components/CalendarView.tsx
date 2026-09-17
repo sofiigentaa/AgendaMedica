@@ -751,11 +751,9 @@ export default function CalendarView({
                             value={appt.estadoPago || 'pendiente'}
                             onChange={(e) => {
                               const nextPayment = e.target.value as PaymentStatus;
-                              onUpdatePayment(
-                                appt.id,
-                                nextPayment,
-                                nextPayment === 'pagado' ? appt.metodoPago || 'efectivo' : 'pendiente'
-                              );
+                              const currentMethod =
+                                appt.metodoPago && appt.metodoPago !== 'pendiente' ? appt.metodoPago : 'efectivo';
+                              onUpdatePayment(appt.id, nextPayment, nextPayment === 'pagado' ? currentMethod : 'pendiente');
                             }}
                             title="Cambiar el estado de pago, sin abrir el turno"
                             className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] shadow-2xs ${
