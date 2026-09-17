@@ -324,13 +324,20 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
         // bloque en vez de una fila de mini-bloqueos pegados.
         let noDarStart: string | null = null;
         let noDarEnd: string | null = null;
+        const noDarLabels: string[] = [];
         const flushNoDarRun = () => {
           if (!noDarStart || !noDarEnd) return;
+          // El médico puede escribir "NO DAR", "NO ESTOY" u otra variante en
+          // cada franja bloqueada — se conserva ese texto tal cual en vez de
+          // un motivo genérico fijo, para que la agenda diga exactamente lo
+          // mismo que la planilla (si una franja mezcla más de un texto, se
+          // muestran todos separados por "/").
+          const label = noDarLabels.join(' / ') || 'NO DAR';
           const now = new Date().toISOString();
           appointments.push({
             id: `turno-imp-${Date.now()}-${appointments.length}-${Math.random().toString(36).substr(2, 4)}`,
             pacienteId: 'bloqueo-agenda',
-            pacienteNombre: '⛔ NO DAR - Horario Bloqueado',
+            pacienteNombre: `⛔ ${label} - Horario Bloqueado`,
             pacienteDni: '-',
             pacienteTelefono: '-',
             pacienteEmail: '',
@@ -350,12 +357,13 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
             metodoPago: 'pendiente',
             recordatorioEnviado: false,
             esBloqueo: true,
-            observaciones: 'Importado desde la hoja de Google Sheets (NO DAR / NO ESTOY).',
+            observaciones: `Importado desde la hoja de Google Sheets (${label}).`,
             createdAt: now,
             updatedAt: now
           });
           noDarStart = null;
           noDarEnd = null;
+          noDarLabels.length = 0;
         };
 
         let r = i + 3;
@@ -384,6 +392,8 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
 
             if (!noDarStart) noDarStart = horaInicio;
             noDarEnd = horaFin;
+            const label = nombreCombinado.toUpperCase();
+            if (!noDarLabels.includes(label)) noDarLabels.push(label);
             r++;
             continue;
           }

@@ -705,38 +705,6 @@ export default function CalendarView({
                       <div className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                         {formatCurrency(appt.honorarios)}
                       </div>
-                      {appt.estado !== 'cancelado' && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <button
-                            onClick={() => {
-                              const nextPayment: PaymentStatus =
-                                appt.estadoPago === 'pagado' ? 'pendiente' : 'pagado';
-                              onUpdatePayment(
-                                appt.id,
-                                nextPayment,
-                                nextPayment === 'pagado' ? 'efectivo' : 'pendiente'
-                              );
-                            }}
-                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full border transition-all ${
-                              appt.estadoPago === 'pagado'
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : appt.estadoPago === 'facturado'
-                                ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                : appt.estadoPago === 'bonificado'
-                                ? 'bg-slate-100 text-slate-700 border-slate-300'
-                                : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
-                            }`}
-                          >
-                            {appt.estadoPago === 'pagado'
-                              ? `✓ Cobrado (${appt.metodoPago || 'efectivo'})`
-                              : appt.estadoPago === 'facturado'
-                              ? 'Facturado a OS'
-                              : appt.estadoPago === 'bonificado'
-                              ? 'Bonificado / Sin Cargo'
-                              : 'Pendiente de cobro'}
-                          </button>
-                        </div>
-                      )}
                     </div>
 
                     {/* Status Dropdown - Strict 4 Statuses */}
