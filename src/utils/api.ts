@@ -95,6 +95,10 @@ export function removeDuplicateAppointments(): Promise<{ removed: number }> {
   return request('/api/appointments/duplicates', { method: 'DELETE' });
 }
 
+export function deleteCancelledAppointments(): Promise<{ removed: number }> {
+  return request('/api/appointments/cancelados', { method: 'DELETE' });
+}
+
 // --- Holidays ---
 
 export function fetchHolidays(): Promise<HolidayOrNonWorkingDay[]> {

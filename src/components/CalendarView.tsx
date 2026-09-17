@@ -21,9 +21,10 @@ import {
   Grid,
   ListFilter,
   CheckCircle2,
-  Printer
+  Printer,
+  History
 } from 'lucide-react';
-import { Appointment, TreatmentType, AppointmentStatus, PaymentStatus, PaymentMethod, HolidayOrNonWorkingDay } from '../types';
+import { Appointment, Patient, TreatmentType, AppointmentStatus, PaymentStatus, PaymentMethod, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS, formatCurrency, getTreatmentById, STATUS_LABELS } from '../data/treatments';
 import {
   formatDatePretty,
@@ -36,11 +37,13 @@ import { generateAppointmentReminder } from '../utils/whatsapp';
 import { generateAppointmentsCSV, triggerFileDownload } from '../utils/export';
 import MonthCalendarView from './MonthCalendarView';
 import ConfirmModal from './ConfirmModal';
+import PatientHistoryModal from './PatientHistoryModal';
 
 interface CalendarViewProps {
   currentDate: string;
   onSelectDate: (date: string) => void;
   appointments: Appointment[];
+  patients: Patient[];
   holidays: HolidayOrNonWorkingDay[];
   onToggleHoliday: (date: string, reason?: string, type?: HolidayOrNonWorkingDay['type']) => void | Promise<void>;
   onOpenNewAppointment: (suggestedTime?: string) => void;
@@ -51,12 +54,14 @@ interface CalendarViewProps {
   onUpdatePayment: (id: string, estadoPago: PaymentStatus, metodoPago?: PaymentMethod) => void;
   onSendReminder: (appointment: Appointment) => void;
   onOpenPrintModal?: () => void;
+  onClearCancelledAppointments?: () => void | Promise<void>;
 }
 
 export default function CalendarView({
   currentDate,
   onSelectDate,
   appointments,
+  patients,
   holidays,
   onToggleHoliday,
   onOpenNewAppointment,
@@ -66,12 +71,15 @@ export default function CalendarView({
   onUpdateStatus,
   onUpdatePayment,
   onSendReminder,
-  onOpenPrintModal
+  onOpenPrintModal,
+  onClearCancelledAppointments
 }: CalendarViewProps) {
   const [calendarMode, setCalendarMode] = useState<'dia' | 'mes'>('dia');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTreatmentFilter, setSelectedTreatmentFilter] = useState<string>('all');
+  const [patientForHistory, setPatientForHistory] = useState<Patient | null>(null);
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [isConfirmingClearCancelled, setIsConfirmingClearCancelled] = useState(false);
 
   // Holiday Modal State for Daily View
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
@@ -90,6 +98,36 @@ export default function CalendarView({
   const isWorkingDay = isClinicWorkingDay(currentDate);
   const holidayInfo = getHolidayInfo(currentDate, holidays);
   const dayName = getDayOfWeekName(currentDate);
+
+  // Cuenta de TODA la agenda (no solo el día que se está viendo), porque
+  // "Limpiar Turnos Cancelados" borra los cancelados de cualquier fecha.
+  const totalCancelledCount = appointments.filter((a) => a.estado === 'cancelado').length;
+
+  // El turno guarda su propia foto de los datos del paciente al momento de
+  // agendarlo (pacienteNombre, pacienteDni, etc.), así que el historial
+  // sigue funcionando incluso si ese paciente ya no está en el Padrón
+  // (se armó una versión mínima con esos mismos datos como respaldo).
+  const resolvePatientForHistory = (appt: Appointment): Patient => {
+    const existing = patients.find((p) => p.id === appt.pacienteId);
+    if (existing) return existing;
+    const [apellido, nombre] = appt.pacienteNombre.includes(',')
+      ? appt.pacienteNombre.split(',').map((s) => s.trim())
+      : ['', appt.pacienteNombre];
+    return {
+      id: appt.pacienteId,
+      dni: appt.pacienteDni,
+      nombre: nombre || '',
+      apellido: apellido || '',
+      email: appt.pacienteEmail || '',
+      telefono: appt.pacienteTelefono,
+      fechaNacimiento: appt.pacienteFechaNacimiento || '',
+      coberturaTipo: appt.coberturaTipo,
+      obraSocial: appt.obraSocial,
+      numeroAfiliado: appt.numeroAfiliado,
+      createdAt: appt.createdAt,
+      updatedAt: appt.updatedAt
+    };
+  };
 
   const handleOpenHolidayModal = () => {
     if (holidayInfo) {
@@ -305,6 +343,20 @@ export default function CalendarView({
               >
                 <Printer className="w-3.5 h-3.5 text-slate-500" />
                 <span>Imprimir Agenda del Día</span>
+              </button>
+            )}
+
+            {/* Clear Cancelled Appointments Button (whole agenda, not just this day) */}
+            {onClearCancelledAppointments && (
+              <button
+                id="btn-clear-cancelled"
+                onClick={() => setIsConfirmingClearCancelled(true)}
+                disabled={totalCancelledCount === 0}
+                title="Elimina los turnos cancelados de toda la agenda, no solo de este día"
+                className="bg-rose-50 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 shadow-2xs transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <span>Limpiar Turnos Cancelados{totalCancelledCount > 0 ? ` (${totalCancelledCount})` : ''}</span>
               </button>
             )}
           </div>
@@ -773,6 +825,14 @@ export default function CalendarView({
                       </a>
 
                       <button
+                        onClick={() => setPatientForHistory(resolvePatientForHistory(appt))}
+                        title="Ver historial de turnos del paciente"
+                        className="p-2.5 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+
+                      <button
                         onClick={() => onEditAppointment(appt)}
                         title="Editar turno"
                         className="p-2.5 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
@@ -936,6 +996,30 @@ export default function CalendarView({
           }
         }}
         onCancel={() => setItemToDelete(null)}
+      />
+
+      {/* Historial de Turnos del Paciente */}
+      <PatientHistoryModal
+        isOpen={!!patientForHistory}
+        onClose={() => setPatientForHistory(null)}
+        patient={patientForHistory}
+        appointments={appointments}
+      />
+
+      {/* Confirmation Modal for Clearing Cancelled Appointments (whole agenda) */}
+      <ConfirmModal
+        isOpen={isConfirmingClearCancelled}
+        title="Limpiar Turnos Cancelados"
+        message={`¿Eliminar ${totalCancelledCount} turno${totalCancelledCount === 1 ? '' : 's'} cancelado${totalCancelledCount === 1 ? '' : 's'}?`}
+        subMessage="Esto afecta a toda la agenda, no solo al día que estás viendo, y no se puede deshacer."
+        confirmText="Eliminar Cancelados"
+        cancelText="Cancelar"
+        isDestructive={true}
+        onConfirm={() => {
+          onClearCancelledAppointments?.();
+          setIsConfirmingClearCancelled(false);
+        }}
+        onCancel={() => setIsConfirmingClearCancelled(false)}
       />
     </div>
   );

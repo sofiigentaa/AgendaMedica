@@ -120,6 +120,14 @@ export function createAppointmentsRouter(): Router {
     res.json({ removed: idsToDelete.length });
   });
 
+  // Elimina TODOS los turnos con estado "cancelado", en cualquier fecha —
+  // pedido desde Vista Día como forma de mantener la agenda limpia de
+  // cancelaciones viejas que ya no aportan nada.
+  router.delete('/cancelados', async (_req: Request, res: Response) => {
+    const { count } = await prisma.appointment.deleteMany({ where: { estado: 'cancelado' } });
+    res.json({ removed: count });
+  });
+
   // Upsert by id, same rationale as patients: one record per write, so
   // concurrent edits from different devices to different appointments never
   // clobber each other (unlike the old "save the whole array" pattern this

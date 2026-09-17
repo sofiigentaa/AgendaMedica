@@ -658,6 +658,22 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  const handleClearCancelledAppointments = async () => {
+    try {
+      const { removed } = await api.deleteCancelledAppointments();
+      setAppointments((prev) => prev.filter((a) => a.estado !== 'cancelado'));
+      setAdminNotification({
+        message:
+          removed > 0
+            ? `Se eliminaron ${removed} turno(s) cancelado(s) de toda la agenda.`
+            : 'No había turnos cancelados para eliminar.',
+        type: 'success'
+      });
+    } catch (err: any) {
+      showError(err.message || 'No se pudieron eliminar los turnos cancelados.');
+    }
+  };
+
   // Count pending reminders for current day
   const pendingRemindersToday = appointments.filter(
     (a) => a.fecha === currentDate && !a.recordatorioEnviado && a.estado !== 'cancelado'
@@ -742,6 +758,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             currentDate={currentDate}
             onSelectDate={setCurrentDate}
             appointments={appointments}
+            patients={patients}
             holidays={holidays}
             onToggleHoliday={handleToggleHoliday}
             onOpenNewAppointment={(suggestedTime) => {
@@ -769,6 +786,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             onUpdatePayment={handleUpdatePayment}
             onSendReminder={(appointment) => handleMarkReminderSent(appointment.id)}
             onOpenPrintModal={() => setIsPrintModalOpen(true)}
+            onClearCancelledAppointments={handleClearCancelledAppointments}
           />
         )}
 
