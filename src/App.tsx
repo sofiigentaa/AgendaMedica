@@ -564,6 +564,28 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  // El preview (cuántos duplicados hay) ya lo pidió el propio modal antes de
+  // llegar acá — este handler solo se llama tras confirmar el borrado, y
+  // vuelve a traer la agenda completa del servidor para que la vista
+  // refleje exactamente lo que quedó (más simple y confiable que tratar de
+  // adivinar qué ids se borraron desde el resultado de la búsqueda previa).
+  const handleRemoveDuplicateAppointments = async () => {
+    try {
+      const { removed } = await api.removeDuplicateAppointments();
+      const refreshed = await api.fetchAppointments();
+      setAppointments(refreshed);
+      setAdminNotification({
+        message:
+          removed > 0
+            ? `Se eliminaron ${removed} turno(s) duplicado(s).`
+            : 'No había turnos duplicados para eliminar.',
+        type: 'success'
+      });
+    } catch (err: any) {
+      showError(err.message || 'No se pudieron eliminar los turnos duplicados.');
+    }
+  };
+
   // Count pending reminders for current day
   const pendingRemindersToday = appointments.filter(
     (a) => a.fecha === currentDate && !a.recordatorioEnviado && a.estado !== 'cancelado'
@@ -779,6 +801,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         onClose={() => setIsResetAgendaModalOpen(false)}
         onClearAllData={handleClearAllData}
         onClearAppointmentsOnly={handleClearAppointmentsOnly}
+        onRemoveDuplicateAppointments={handleRemoveDuplicateAppointments}
         totalAppointments={appointments.length}
         totalPatients={patients.length}
       />

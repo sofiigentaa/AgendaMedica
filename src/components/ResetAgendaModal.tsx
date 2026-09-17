@@ -7,14 +7,17 @@ import {
   X,
   CheckCircle2,
   ShieldAlert,
-  HardDriveDownload
+  HardDriveDownload,
+  CopyX
 } from 'lucide-react';
+import { findDuplicateAppointments, type DuplicateAppointmentsPreview } from '../utils/api';
 
 interface ResetAgendaModalProps {
   isOpen: boolean;
   onClose: () => void;
   onClearAllData: () => void | Promise<void>;
   onClearAppointmentsOnly: () => void | Promise<void>;
+  onRemoveDuplicateAppointments: () => void | Promise<void>;
   totalAppointments: number;
   totalPatients: number;
 }
@@ -24,11 +27,15 @@ export default function ResetAgendaModal({
   onClose,
   onClearAllData,
   onClearAppointmentsOnly,
+  onRemoveDuplicateAppointments,
   totalAppointments,
   totalPatients
 }: ResetAgendaModalProps) {
-  const [confirmStep, setConfirmStep] = useState<null | 'all' | 'appointments'>(null);
+  const [confirmStep, setConfirmStep] = useState<null | 'all' | 'appointments' | 'duplicates'>(null);
   const [confirmationInput, setConfirmationInput] = useState('');
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [duplicatesPreview, setDuplicatesPreview] = useState<DuplicateAppointmentsPreview | null>(null);
+  const [duplicatesCheckError, setDuplicatesCheckError] = useState('');
 
   if (!isOpen) return null;
 
@@ -37,13 +44,33 @@ export default function ResetAgendaModal({
     setConfirmationInput('');
   };
 
+  // A diferencia de "Vaciar Turnos" / "Vaciar Todo" (que solo piden
+  // confirmar), esta opción primero busca los duplicados SIN borrar nada,
+  // para que se vea cuántos hay antes de decidir eliminarlos.
+  const handleCheckDuplicates = async () => {
+    setIsCheckingDuplicates(true);
+    setDuplicatesCheckError('');
+    try {
+      const preview = await findDuplicateAppointments();
+      setDuplicatesPreview(preview);
+      setConfirmStep('duplicates');
+    } catch (err: any) {
+      setDuplicatesCheckError(err.message || 'No se pudo revisar la agenda en busca de duplicados.');
+    } finally {
+      setIsCheckingDuplicates(false);
+    }
+  };
+
   const handleExecuteConfirmed = () => {
     if (confirmStep === 'all') {
       onClearAllData();
     } else if (confirmStep === 'appointments') {
       onClearAppointmentsOnly();
+    } else if (confirmStep === 'duplicates') {
+      onRemoveDuplicateAppointments();
     }
     setConfirmStep(null);
+    setDuplicatesPreview(null);
     onClose();
   };
 
@@ -67,6 +94,12 @@ export default function ResetAgendaModal({
       iconClasses: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
       title: 'VACIAR TODO',
       subtitle: 'Confirmá si querés eliminar todos los datos de la agenda'
+    },
+    duplicates: {
+      icon: <CopyX className="w-5 h-5" />,
+      iconClasses: 'bg-sky-500/20 text-sky-400 border border-sky-500/30',
+      title: 'TURNOS DUPLICADOS',
+      subtitle: 'Resultado de la búsqueda de turnos y bloqueos repetidos'
     }
   } as const;
 
@@ -111,6 +144,30 @@ export default function ResetAgendaModal({
                 </div>
               </div>
 
+              {/* Action 0: Buscar y Eliminar Turnos Duplicados */}
+              <div className="p-4 rounded-2xl border-2 border-sky-200 bg-sky-50/50 hover:bg-sky-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="text-xs font-black text-sky-950 flex items-center gap-1.5">
+                    <CopyX className="w-4 h-4 text-sky-600" />
+                    Buscar y eliminar turnos duplicados
+                  </div>
+                  <p className="text-[11px] text-sky-800 leading-snug">
+                    Revisa la agenda por turnos o bloqueos (NO DAR / NO ESTOY) repetidos — mismo paciente, fecha y horario — y muestra cuántos hay antes de borrar nada.
+                  </p>
+                  {duplicatesCheckError && (
+                    <p className="text-[11px] text-rose-700 font-semibold">{duplicatesCheckError}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCheckDuplicates}
+                  disabled={isCheckingDuplicates}
+                  className="bg-sky-600 hover:bg-sky-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs shrink-0 self-start sm:self-auto transition-colors"
+                >
+                  {isCheckingDuplicates ? 'Buscando...' : 'Revisar Duplicados'}
+                </button>
+              </div>
+
               {/* Action 1: Vaciar Únicamente Turnos del Calendario */}
               <div className="p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -151,8 +208,87 @@ export default function ResetAgendaModal({
                 </button>
               </div>
             </>
+          ) : confirmStep === 'duplicates' ? (
+            /* Duplicates Preview / Confirmation Step */
+            <div className="space-y-5 py-2">
+              {duplicatesPreview && duplicatesPreview.extraCount > 0 ? (
+                <>
+                  <div className="p-4 rounded-2xl border flex items-start gap-3 bg-sky-50 border-sky-200 text-sky-900">
+                    <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-sky-100 text-sky-600">
+                      <CopyX className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold text-sm">
+                        Se encontraron {duplicatesPreview.extraCount} turno{duplicatesPreview.extraCount === 1 ? '' : 's'} duplicado{duplicatesPreview.extraCount === 1 ? '' : 's'}
+                      </div>
+                      <p className="text-xs leading-relaxed">
+                        En {duplicatesPreview.duplicateGroupsCount} horario{duplicatesPreview.duplicateGroupsCount === 1 ? '' : 's'} hay más de un turno cargado con el mismo paciente, fecha y hora. Se va a conservar el más antiguo de cada grupo y borrar el resto.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-2.5">
+                    {duplicatesPreview.groups.map((g, idx) => (
+                      <div
+                        key={idx}
+                        className="text-[11px] text-slate-700 bg-slate-50 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate">
+                          <strong>{g.fecha}</strong> {g.horaInicio}–{g.horaFin} • {g.pacienteNombre}
+                        </span>
+                        <span className="shrink-0 font-bold text-sky-700">x{g.count}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmStep(null);
+                        setDuplicatesPreview(null);
+                      }}
+                      className="text-xs font-semibold text-slate-700 border border-slate-300 hover:bg-slate-100 px-4 py-2.5 rounded-xl transition-colors"
+                    >
+                      Atrás
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteConfirmed}
+                      className="flex items-center gap-1.5 text-xs font-bold text-white px-5 py-2.5 rounded-xl shadow-xs transition-colors bg-sky-600 hover:bg-sky-700"
+                    >
+                      Sí, Eliminar los {duplicatesPreview.extraCount} Duplicados
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-4 rounded-2xl border flex items-start gap-3 bg-emerald-50 border-emerald-200 text-emerald-900">
+                    <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-emerald-100 text-emerald-600">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold text-sm">No se encontraron turnos duplicados</div>
+                      <p className="text-xs leading-relaxed">La agenda no tiene turnos ni bloqueos repetidos en este momento.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmStep(null);
+                        setDuplicatesPreview(null);
+                      }}
+                      className="text-xs font-semibold text-slate-700 border border-slate-300 hover:bg-slate-100 px-4 py-2.5 rounded-xl transition-colors"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           ) : (
-            /* Confirmation Step */
+            /* Confirmation Step (Vaciar Turnos / Vaciar Todo) */
             <div className="space-y-5 py-2">
               <div className="p-4 rounded-2xl border flex items-start gap-3 bg-rose-50 border-rose-200 text-rose-900">
                 <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-rose-100 text-rose-600">

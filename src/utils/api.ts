@@ -81,6 +81,20 @@ export function deleteAllAppointments(): Promise<void> {
   return request('/api/appointments', { method: 'DELETE' });
 }
 
+export interface DuplicateAppointmentsPreview {
+  duplicateGroupsCount: number;
+  extraCount: number;
+  groups: { fecha: string; horaInicio: string; horaFin: string; pacienteNombre: string; count: number }[];
+}
+
+export function findDuplicateAppointments(): Promise<DuplicateAppointmentsPreview> {
+  return request('/api/appointments/duplicates');
+}
+
+export function removeDuplicateAppointments(): Promise<{ removed: number }> {
+  return request('/api/appointments/duplicates', { method: 'DELETE' });
+}
+
 // --- Holidays ---
 
 export function fetchHolidays(): Promise<HolidayOrNonWorkingDay[]> {
