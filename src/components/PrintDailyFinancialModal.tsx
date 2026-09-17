@@ -34,14 +34,14 @@ export default function PrintDailyFinancialModal({
 }: PrintDailyFinancialModalProps) {
   if (!isOpen) return null;
 
+  // Los bloqueos (NO DAR / NO ESTOY) no son turnos de pacientes — se excluyen
+  // de esta planilla de cierre de caja, que es solo el detalle de cobros.
   const dayAppointments = appointments
-    .filter((a) => a.fecha === date)
+    .filter((a) => a.fecha === date && !a.esBloqueo && a.tratamientoId !== 'no_dar')
     .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
-  const totalTurnos = dayAppointments.filter((a) => !a.esBloqueo && a.tratamientoId !== 'no_dar').length;
-  const turnosCobrados = dayAppointments.filter(
-    (a) => a.estadoPago === 'pagado' && !a.esBloqueo && a.tratamientoId !== 'no_dar'
-  ).length;
+  const totalTurnos = dayAppointments.length;
+  const turnosCobrados = dayAppointments.filter((a) => a.estadoPago === 'pagado').length;
 
   const totalEfectivo = summary.porMetodoPago?.efectivo || 0;
   const totalTransferencia = summary.porMetodoPago?.transferencia || 0;
@@ -189,23 +189,6 @@ export default function PrintDailyFinancialModal({
                     </tr>
                   ) : (
                     dayAppointments.map((apt) => {
-                      const isBlocked = apt.esBloqueo || apt.tratamientoId === 'no_dar';
-                      if (isBlocked) {
-                        return (
-                          <tr key={apt.id} className="bg-rose-50/50 text-rose-900">
-                            <td className="p-2.5 text-center font-mono font-bold">
-                              {apt.horaInicio} - {apt.horaFin}
-                            </td>
-                            <td colSpan={3} className="p-2.5 font-bold">
-                              ⛔ BLOQUEO DE AGENDA ({apt.observaciones || 'No disponible'})
-                            </td>
-                            <td className="p-2.5 text-center">-</td>
-                            <td className="p-2.5 text-right">-</td>
-                            <td className="p-2.5 text-center font-bold">No Aplica</td>
-                          </tr>
-                        );
-                      }
-
                       const patient = patients.find((p) => p.id === apt.pacienteId);
                       const cobertura = apt.obraSocial || patient?.obraSocial || 'Particular';
                       const isPaid = apt.estadoPago === 'pagado';

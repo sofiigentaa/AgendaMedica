@@ -206,10 +206,6 @@ export function executePrintDocument(
       .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
       .font-bold { font-weight: 700; }
       .font-black { font-weight: 900; }
-      .blocked-row td {
-        background-color: #fef2f2 !important;
-        color: #991b1b;
-      }
       .footer-notes {
         margin-top: 20px;
         padding-top: 12px;
@@ -343,14 +339,14 @@ export function printDailyFinancialReport(
   summary: DailySummary,
   patients: Patient[]
 ): void {
+  // Los bloqueos (NO DAR / NO ESTOY) no son turnos de pacientes — se excluyen
+  // de esta planilla de cierre de caja, que es solo el detalle de cobros.
   const dayAppointments = appointments
-    .filter((a) => a.fecha === currentDate)
+    .filter((a) => a.fecha === currentDate && !a.esBloqueo && a.tratamientoId !== 'no_dar')
     .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
-  const totalTurnos = dayAppointments.filter((a) => !a.esBloqueo && a.tratamientoId !== 'no_dar').length;
-  const turnosCobrados = dayAppointments.filter(
-    (a) => a.estadoPago === 'pagado' && !a.esBloqueo && a.tratamientoId !== 'no_dar'
-  ).length;
+  const totalTurnos = dayAppointments.length;
+  const turnosCobrados = dayAppointments.filter((a) => a.estadoPago === 'pagado').length;
 
   const totalEfectivo = summary.porMetodoPago?.efectivo || 0;
   const totalTransferencia = summary.porMetodoPago?.transferencia || 0;
@@ -361,19 +357,6 @@ export function printDailyFinancialReport(
       ? `<tr><td colspan="7" class="text-center" style="padding: 24px; color: #64748b;">No se registraron turnos para esta fecha (${currentDate}).</td></tr>`
       : dayAppointments
           .map((apt) => {
-            const isBlocked = apt.esBloqueo || apt.tratamientoId === 'no_dar';
-            if (isBlocked) {
-              return `
-            <tr class="blocked-row">
-              <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
-              <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (${escapeHtml(apt.observaciones || 'No disponible')})</td>
-              <td class="text-center">-</td>
-              <td class="text-right">-</td>
-              <td class="text-center font-bold">No Aplica</td>
-            </tr>
-          `;
-            }
-
             const patient = patients.find((p) => p.id === apt.pacienteId);
             const cobertura = apt.obraSocial || patient?.obraSocial || 'Particular';
             const metodoPagoText =
