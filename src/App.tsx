@@ -9,6 +9,7 @@ import {
   HolidayOrNonWorkingDay
 } from './types';
 import { getTodayDateString, computeDailySummary, formatDatePretty } from './utils/storage';
+import { calculateDurationMinutes } from './data/treatments';
 import { exportFullBackupPackage, generateAppointmentsCSV, triggerFileDownload } from './utils/export';
 import * as api from './utils/api';
 import Navbar from './components/Navbar';
@@ -474,13 +475,47 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       // no hay forma de que el upsert por id los reconozca como el mismo).
       // Se considera "ya existente" un turno con la misma fecha, horario,
       // tratamiento y DNI de paciente que uno ya cargado en la agenda.
+      const existingRegular = appointments.filter((a) => !a.esBloqueo);
+      const existingBlocks = appointments.filter((a) => a.esBloqueo);
       const existingKeys = new Set(
-        appointments.map((a) => `${a.fecha}|${a.horaInicio}|${a.horaFin}|${a.tratamientoId}|${a.pacienteDni}`)
+        existingRegular.map((a) => `${a.fecha}|${a.horaInicio}|${a.horaFin}|${a.tratamientoId}|${a.pacienteDni}`)
       );
-      const newAppointments = parsed.appointments.filter(
+
+      const parsedRegular = parsed.appointments.filter((a) => !a.esBloqueo);
+      const parsedBlocks = parsed.appointments.filter((a) => a.esBloqueo);
+
+      const newRegular = parsedRegular.filter(
         (a) => !existingKeys.has(`${a.fecha}|${a.horaInicio}|${a.horaFin}|${a.tratamientoId}|${a.pacienteDni}`)
       );
-      const alreadySyncedCount = parsed.appointments.length - newAppointments.length;
+
+      // Los bloqueos (NO DAR / NO ESTOY) se comparan por SOLAPAMIENTO, no por
+      // igualdad exacta: si la hoja extendió un bloqueo que ya estaba
+      // sincronizado (ej. de 19:00–20:15 a 19:00–20:45), no tiene que crear
+      // un segundo bloqueo superpuesto — extiende el que ya existía.
+      const newBlocks: Appointment[] = [];
+      const blockUpdates: Appointment[] = [];
+      for (const parsedBlock of parsedBlocks) {
+        const overlapping = existingBlocks.find(
+          (e) => e.fecha === parsedBlock.fecha && parsedBlock.horaInicio <= e.horaFin && e.horaInicio <= parsedBlock.horaFin
+        );
+        if (!overlapping) {
+          newBlocks.push(parsedBlock);
+          continue;
+        }
+        const mergedStart = parsedBlock.horaInicio < overlapping.horaInicio ? parsedBlock.horaInicio : overlapping.horaInicio;
+        const mergedEnd = parsedBlock.horaFin > overlapping.horaFin ? parsedBlock.horaFin : overlapping.horaFin;
+        if (mergedStart !== overlapping.horaInicio || mergedEnd !== overlapping.horaFin) {
+          blockUpdates.push({
+            ...overlapping,
+            horaInicio: mergedStart,
+            horaFin: mergedEnd,
+            duracionMinutos: calculateDurationMinutes(mergedStart, mergedEnd)
+          });
+        }
+      }
+
+      const newAppointments = [...newRegular, ...newBlocks];
+      const alreadySyncedCount = parsed.appointments.length - newAppointments.length - blockUpdates.length;
 
       const savedOnes: Appointment[] = [];
       let failedToSaveCount = 0;
@@ -496,8 +531,20 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         setAppointments((prev) => [...prev, ...savedOnes]);
       }
 
+      let extendedCount = 0;
+      for (const update of blockUpdates) {
+        try {
+          const saved = await api.saveAppointment(update);
+          setAppointments((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
+          extendedCount++;
+        } catch {
+          failedToSaveCount++;
+        }
+      }
+
       const parts: string[] = [];
       if (savedOnes.length > 0) parts.push(`${savedOnes.length} turno(s) sincronizado(s)`);
+      if (extendedCount > 0) parts.push(`${extendedCount} bloqueo(s) extendido(s)`);
       if (alreadySyncedCount > 0) parts.push(`${alreadySyncedCount} ya estaban sincronizados`);
       if (parsed.skippedNoPatientMatch > 0) {
         parts.push(`${parsed.skippedNoPatientMatch} sin paciente coincidente en el Padrón`);

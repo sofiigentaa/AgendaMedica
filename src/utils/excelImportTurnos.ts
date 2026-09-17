@@ -503,15 +503,51 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
       return true;
     });
 
+    // Cuando una hoja "Copia de <Mes>" diverge de la original (una se editó
+    // después, la otra no), sus bloqueos "NO DAR"/"NO ESTOY" para el mismo
+    // día terminan con horarios distintos que se SOLAPAN en vez de ser
+    // idénticos (ej. 19:00–20:15 y 19:30–20:45) — el filtro de arriba no los
+    // agarra porque no coinciden exactamente. Se fusionan por separado: para
+    // cada fecha, cualquier bloqueo cuyo horario se solape o toque con otro
+    // se combina en uno solo, desde el inicio más temprano hasta el fin más
+    // tardío. Los turnos con paciente real NO se tocan acá — dos turnos
+    // distintos pegados uno con otro son perfectamente válidos.
+    const blocks = dedupedAppointments.filter((a) => a.esBloqueo);
+    const nonBlocks = dedupedAppointments.filter((a) => !a.esBloqueo);
+    const blocksByDate = new Map<string, Appointment[]>();
+    for (const block of blocks) {
+      const list = blocksByDate.get(block.fecha) || [];
+      list.push(block);
+      blocksByDate.set(block.fecha, list);
+    }
+    const mergedBlocks: Appointment[] = [];
+    for (const dayBlocks of blocksByDate.values()) {
+      dayBlocks.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+      let current: Appointment | null = null;
+      for (const block of dayBlocks) {
+        if (current && block.horaInicio <= current.horaFin) {
+          if (block.horaFin > current.horaFin) {
+            current.horaFin = block.horaFin;
+            current.duracionMinutos = calculateDurationMinutes(current.horaInicio, current.horaFin);
+          }
+        } else {
+          if (current) mergedBlocks.push(current);
+          current = { ...block };
+        }
+      }
+      if (current) mergedBlocks.push(current);
+    }
+    const finalAppointments = [...nonBlocks, ...mergedBlocks];
+
     return {
-      success: dedupedAppointments.length > 0,
-      appointments: dedupedAppointments,
+      success: finalAppointments.length > 0,
+      appointments: finalAppointments,
       warnings,
-      errors: dedupedAppointments.length === 0 && warnings.length === 0
+      errors: finalAppointments.length === 0 && warnings.length === 0
         ? ['No se encontró ningún bloque de día reconocible (encabezados "Dia" / "Fecha") en ninguna hoja del archivo.']
         : [],
       totalSlotsScanned,
-      importedCount: dedupedAppointments.length,
+      importedCount: finalAppointments.length,
       skippedNoPatientMatch
     };
   } catch (err: any) {

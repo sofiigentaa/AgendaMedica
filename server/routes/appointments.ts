@@ -1,5 +1,55 @@
 import { Router, Request, Response } from 'express';
+import { Appointment } from '@prisma/client';
 import { prisma } from '../db';
+import { calculateDurationMinutes } from '../../src/data/treatments';
+
+// Turnos con paciente real: se agrupan por igualdad EXACTA de
+// fecha+horario+tratamiento+DNI (misma clave que usa la sincronización de
+// Google Sheets para no reimportar algo ya sincronizado).
+function exactDuplicateGroups(appointments: Appointment[]): Appointment[][] {
+  const groups = new Map<string, Appointment[]>();
+  for (const appt of appointments) {
+    if (appt.esBloqueo) continue;
+    const key = `${appt.fecha}|${appt.horaInicio}|${appt.horaFin}|${appt.tratamientoId}|${appt.pacienteDni}`;
+    const group = groups.get(key);
+    if (group) group.push(appt);
+    else groups.set(key, [appt]);
+  }
+  return [...groups.values()].filter((g) => g.length > 1);
+}
+
+// Bloqueos (NO DAR / NO ESTOY): dos hojas "Copia de <Mes>" que divergieron
+// con el tiempo pueden generar bloqueos para el mismo día que se SOLAPAN con
+// horarios distintos (ej. 19:00–20:15 y 19:30–20:45) en vez de ser
+// idénticos, así que se agrupan por solapamiento de horario dentro de la
+// misma fecha, no por igualdad exacta.
+function overlappingBlockGroups(appointments: Appointment[]): Appointment[][] {
+  const blocksByDate = new Map<string, Appointment[]>();
+  for (const appt of appointments) {
+    if (!appt.esBloqueo) continue;
+    const list = blocksByDate.get(appt.fecha) || [];
+    list.push(appt);
+    blocksByDate.set(appt.fecha, list);
+  }
+  const groups: Appointment[][] = [];
+  for (const dayBlocks of blocksByDate.values()) {
+    dayBlocks.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio) || a.createdAt.getTime() - b.createdAt.getTime());
+    let currentGroup: Appointment[] = [];
+    let currentEnd = '';
+    for (const block of dayBlocks) {
+      if (currentGroup.length > 0 && block.horaInicio <= currentEnd) {
+        currentGroup.push(block);
+        if (block.horaFin > currentEnd) currentEnd = block.horaFin;
+      } else {
+        if (currentGroup.length > 1) groups.push(currentGroup);
+        currentGroup = [block];
+        currentEnd = block.horaFin;
+      }
+    }
+    if (currentGroup.length > 1) groups.push(currentGroup);
+  }
+  return groups;
+}
 
 export function createAppointmentsRouter(): Router {
   const router = Router();
@@ -15,53 +65,55 @@ export function createAppointmentsRouter(): Router {
   // parameterized /:id routes below — otherwise Express would match
   // "/duplicates" against ":id" before ever reaching these handlers.
 
-  // Groups appointments by fecha+horaInicio+horaFin+tratamientoId+DNI (the
-  // same key the Google Sheets sync uses to avoid re-importing something
-  // already synced) and reports any group with more than one row — left
-  // over from syncs run before that de-duplication existed. Read-only: lets
-  // the UI show a preview/count before anyone commits to deleting anything.
+  // Read-only preview: reports both exact-duplicate turnos and
+  // overlapping-but-not-identical bloqueos, so the UI can show a count
+  // before anyone commits to deleting/merging anything.
   router.get('/duplicates', async (_req: Request, res: Response) => {
     const appointments = await prisma.appointment.findMany({
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }, { createdAt: 'asc' }]
     });
-    const groups = new Map<string, typeof appointments>();
-    for (const appt of appointments) {
-      const key = `${appt.fecha}|${appt.horaInicio}|${appt.horaFin}|${appt.tratamientoId}|${appt.pacienteDni}`;
-      const group = groups.get(key);
-      if (group) group.push(appt);
-      else groups.set(key, [appt]);
-    }
-    const duplicateGroups = [...groups.values()].filter((g) => g.length > 1);
-    const extraCount = duplicateGroups.reduce((sum, g) => sum + (g.length - 1), 0);
+    const groups = [...exactDuplicateGroups(appointments), ...overlappingBlockGroups(appointments)];
+    const extraCount = groups.reduce((sum, g) => sum + (g.length - 1), 0);
     res.json({
-      duplicateGroupsCount: duplicateGroups.length,
+      duplicateGroupsCount: groups.length,
       extraCount,
-      groups: duplicateGroups.map((g) => ({
+      groups: groups.map((g) => ({
         fecha: g[0].fecha,
-        horaInicio: g[0].horaInicio,
-        horaFin: g[0].horaFin,
+        horaInicio: g.reduce((min, a) => (a.horaInicio < min ? a.horaInicio : min), g[0].horaInicio),
+        horaFin: g.reduce((max, a) => (a.horaFin > max ? a.horaFin : max), g[0].horaFin),
         pacienteNombre: g[0].pacienteNombre,
         count: g.length
       }))
     });
   });
 
-  // Deletes the extra copies of each duplicate group found above, always
-  // keeping the oldest record (the one created first) in each group.
+  // Resolves every group found above: exact turno duplicates just lose their
+  // extra copies; overlapping bloqueos keep the oldest record but stretched
+  // to cover the full merged range (min start, max end) and lose the rest —
+  // always keeping the oldest (first-created) row of each group.
   router.delete('/duplicates', async (_req: Request, res: Response) => {
     const appointments = await prisma.appointment.findMany({
       orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }, { createdAt: 'asc' }]
     });
-    const groups = new Map<string, typeof appointments>();
-    for (const appt of appointments) {
-      const key = `${appt.fecha}|${appt.horaInicio}|${appt.horaFin}|${appt.tratamientoId}|${appt.pacienteDni}`;
-      const group = groups.get(key);
-      if (group) group.push(appt);
-      else groups.set(key, [appt]);
+
+    const idsToDelete: string[] = [];
+    for (const group of exactDuplicateGroups(appointments)) {
+      idsToDelete.push(...group.slice(1).map((a) => a.id));
     }
-    const idsToDelete = [...groups.values()]
-      .filter((g) => g.length > 1)
-      .flatMap((g) => g.slice(1).map((a) => a.id));
+
+    for (const group of overlappingBlockGroups(appointments)) {
+      const [keep, ...rest] = group;
+      idsToDelete.push(...rest.map((a) => a.id));
+      const horaInicio = group.reduce((min, a) => (a.horaInicio < min ? a.horaInicio : min), keep.horaInicio);
+      const horaFin = group.reduce((max, a) => (a.horaFin > max ? a.horaFin : max), keep.horaFin);
+      if (horaInicio !== keep.horaInicio || horaFin !== keep.horaFin) {
+        await prisma.appointment.update({
+          where: { id: keep.id },
+          data: { horaInicio, horaFin, duracionMinutos: calculateDurationMinutes(horaInicio, horaFin) }
+        });
+      }
+    }
+
     if (idsToDelete.length > 0) {
       await prisma.appointment.deleteMany({ where: { id: { in: idsToDelete } } });
     }
