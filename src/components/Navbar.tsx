@@ -135,9 +135,6 @@ export default function Navbar({
             <div className="bg-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl shadow-sm border border-slate-200 inline-flex items-center">
               <EsteticaLaserLogo size="md" theme="light" />
             </div>
-            <span className="text-[10px] sm:text-xs font-extrabold text-teal-300 tracking-wider uppercase pl-1">
-              Agenda Médica Rosario
-            </span>
           </div>
 
           {/* Quick mobile action */}
@@ -238,9 +235,6 @@ export default function Navbar({
             <div className="text-xs font-bold text-slate-300 font-mono flex items-center gap-1.5 justify-end">
               <Clock className="w-3.5 h-3.5 text-teal-400" />
               <span>{timeString} hs</span>
-            </div>
-            <div className="text-[10px] text-teal-300/80 font-medium">
-              Consultorios Médicos
             </div>
           </div>
         </div>

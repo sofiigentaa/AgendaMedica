@@ -20,7 +20,8 @@ import {
   Ban,
   Grid,
   ListFilter,
-  CheckCircle2
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { Appointment, TreatmentType, AppointmentStatus, PaymentStatus, PaymentMethod, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS, formatCurrency, getTreatmentById, STATUS_LABELS } from '../data/treatments';
@@ -294,7 +295,18 @@ export default function CalendarView({
               )}
             </button>
 
-            {/* RF-05: se quitó el botón "Imprimir Agenda del Día" / "Imprimir Guardar PDF" a pedido. */}
+            {/* Print Daily Schedule Button */}
+            {onOpenPrintModal && (
+              <button
+                id="btn-print-daily-schedule"
+                onClick={onOpenPrintModal}
+                title="Imprimir o guardar en PDF la agenda de este día"
+                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0 shadow-2xs transition-all"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-500" />
+                <span>Imprimir Agenda del Día</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -693,31 +705,38 @@ export default function CalendarView({
                       <div className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                         {formatCurrency(appt.honorarios)}
                       </div>
-                      {appt.estado !== 'cancelado' &&
-                        (appt.estadoPago === 'pagado' || appt.estadoPago === 'facturado') && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <button
-                              onClick={() => {
-                                const nextPayment: PaymentStatus =
-                                  appt.estadoPago === 'pagado' ? 'pendiente' : 'pagado';
-                                onUpdatePayment(
-                                  appt.id,
-                                  nextPayment,
-                                  nextPayment === 'pagado' ? 'efectivo' : 'pendiente'
-                                );
-                              }}
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full border transition-all ${
-                                appt.estadoPago === 'pagado'
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                  : 'bg-sky-100 text-sky-800 border-sky-300'
-                              }`}
-                            >
-                              {appt.estadoPago === 'pagado'
-                                ? `✓ Cobrado (${appt.metodoPago || 'efectivo'})`
-                                : 'Facturado a OS'}
-                            </button>
-                          </div>
-                        )}
+                      {appt.estado !== 'cancelado' && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <button
+                            onClick={() => {
+                              const nextPayment: PaymentStatus =
+                                appt.estadoPago === 'pagado' ? 'pendiente' : 'pagado';
+                              onUpdatePayment(
+                                appt.id,
+                                nextPayment,
+                                nextPayment === 'pagado' ? 'efectivo' : 'pendiente'
+                              );
+                            }}
+                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                              appt.estadoPago === 'pagado'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : appt.estadoPago === 'facturado'
+                                ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                : appt.estadoPago === 'bonificado'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                            }`}
+                          >
+                            {appt.estadoPago === 'pagado'
+                              ? `✓ Cobrado (${appt.metodoPago || 'efectivo'})`
+                              : appt.estadoPago === 'facturado'
+                              ? 'Facturado a OS'
+                              : appt.estadoPago === 'bonificado'
+                              ? 'Bonificado / Sin Cargo'
+                              : 'Pendiente de cobro'}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Status Dropdown - Strict 4 Statuses */}
