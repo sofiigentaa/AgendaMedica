@@ -312,14 +312,83 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
           continue;
         }
 
+        // El template marca un horario reservado (cirugía, reunión, etc.)
+        // escribiendo "NO DAR" en la columna de nombre para cada franja que
+        // cubre, con el resto de la fila en "#N/A" (una búsqueda de paciente
+        // que no encontró nada). En vez de tratarlas como turnos con paciente
+        // no encontrado (que las dejaba afuera silenciosamente) o crear un
+        // bloqueo separado por cada franja de 15/30 min, se fusionan las
+        // franjas "NO DAR" consecutivas en un único bloqueo de agenda — el
+        // mismo tipo de registro que crea "Bloquear Horario (NO DAR)" a
+        // mano — así el calendario muestra un solo bloque en vez de una fila
+        // de mini-bloqueos pegados.
+        let noDarStart: string | null = null;
+        let noDarEnd: string | null = null;
+        const flushNoDarRun = () => {
+          if (!noDarStart || !noDarEnd) return;
+          const now = new Date().toISOString();
+          appointments.push({
+            id: `turno-imp-${Date.now()}-${appointments.length}-${Math.random().toString(36).substr(2, 4)}`,
+            pacienteId: 'bloqueo-agenda',
+            pacienteNombre: '⛔ NO DAR - Horario Bloqueado',
+            pacienteDni: '-',
+            pacienteTelefono: '-',
+            pacienteEmail: '',
+            pacienteFechaNacimiento: '',
+            coberturaTipo: 'particular',
+            obraSocial: 'NO DAR',
+            numeroAfiliado: '',
+            fecha,
+            horaInicio: noDarStart,
+            tratamientoId: 'no_dar',
+            tratamientoNombre: '⛔ NO DAR (Horario Bloqueado)',
+            duracionMinutos: calculateDurationMinutes(noDarStart, noDarEnd),
+            horaFin: noDarEnd,
+            honorarios: 0,
+            estado: 'confirmado',
+            estadoPago: 'bonificado',
+            metodoPago: 'pendiente',
+            recordatorioEnviado: false,
+            esBloqueo: true,
+            observaciones: 'Importado desde la hoja de Google Sheets (NO DAR).',
+            createdAt: now,
+            updatedAt: now
+          });
+          noDarStart = null;
+          noDarEnd = null;
+        };
+
         let r = i + 3;
         while (r < rows.length) {
           const row = rows[r];
           const horaInicio = normalizeClockTime(row[columns.horario] || '');
-          if (!horaInicio) break; // fin del bloque (fila Total, fila en blanco, o próximo Dia/Fecha)
+          if (!horaInicio) {
+            flushNoDarRun();
+            break; // fin del bloque (fila Total, fila en blanco, o próximo Dia/Fecha)
+          }
 
           totalSlotsScanned++;
           const nombreCombinado = (row[columns.nombre] || '').trim();
+
+          if (normalizeKey(nombreCombinado) === 'nodar') {
+            const duracionCell = columns.duracion >= 0 ? row[columns.duracion] || '' : '';
+            const horaFinCell = columns.horaFin >= 0 ? normalizeClockTime(row[columns.horaFin] || '') : '';
+            let duracionMinutos = parseDurationMinutes(duracionCell);
+            let horaFin = horaFinCell;
+            if (duracionMinutos <= 0 && horaFin) {
+              duracionMinutos = calculateDurationMinutes(horaInicio, horaFin);
+            }
+            if (duracionMinutos <= 0) duracionMinutos = 15;
+            if (!horaFin) horaFin = calculateEndTime(horaInicio, duracionMinutos);
+
+            if (!noDarStart) noDarStart = horaInicio;
+            noDarEnd = horaFin;
+            r++;
+            continue;
+          }
+
+          flushNoDarRun();
+
           if (!nombreCombinado) {
             r++;
             continue; // horario libre, sin turno cargado
@@ -412,6 +481,8 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
 
           r++;
         }
+
+        flushNoDarRun(); // por si la racha de "NO DAR" llega hasta el final de la hoja, sin fila en blanco
 
         i = r; // seguir escaneando desde donde terminó el bloque (fila Total / blanco / próximo Dia-Fecha)
       }
