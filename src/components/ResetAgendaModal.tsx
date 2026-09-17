@@ -3,13 +3,11 @@ import {
   Trash2,
   CalendarX2,
   Database,
-  Sparkles,
   AlertTriangle,
   X,
   CheckCircle2,
   ShieldAlert,
-  HardDriveDownload,
-  RotateCcw
+  HardDriveDownload
 } from 'lucide-react';
 
 interface ResetAgendaModalProps {
@@ -17,7 +15,6 @@ interface ResetAgendaModalProps {
   onClose: () => void;
   onClearAllData: () => void | Promise<void>;
   onClearAppointmentsOnly: () => void | Promise<void>;
-  onLoadDemoData: () => void | Promise<void>;
   totalAppointments: number;
   totalPatients: number;
 }
@@ -27,16 +24,15 @@ export default function ResetAgendaModal({
   onClose,
   onClearAllData,
   onClearAppointmentsOnly,
-  onLoadDemoData,
   totalAppointments,
   totalPatients
 }: ResetAgendaModalProps) {
-  const [confirmStep, setConfirmStep] = useState<null | 'all' | 'appointments' | 'demo'>(null);
+  const [confirmStep, setConfirmStep] = useState<null | 'all' | 'appointments'>(null);
   const [confirmationInput, setConfirmationInput] = useState('');
 
   if (!isOpen) return null;
 
-  const handleAction = (type: 'all' | 'appointments' | 'demo') => {
+  const handleAction = (type: 'all' | 'appointments') => {
     setConfirmStep(type);
     setConfirmationInput('');
   };
@@ -46,8 +42,6 @@ export default function ResetAgendaModal({
       onClearAllData();
     } else if (confirmStep === 'appointments') {
       onClearAppointmentsOnly();
-    } else if (confirmStep === 'demo') {
-      onLoadDemoData();
     }
     setConfirmStep(null);
     onClose();
@@ -60,7 +54,7 @@ export default function ResetAgendaModal({
       icon: <Database className="w-5 h-5" />,
       iconClasses: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
       title: 'Gestionar y Restablecer Agenda',
-      subtitle: 'Opciones de limpieza de calendario, vaciado de datos o carga de demostración'
+      subtitle: 'Opciones de limpieza de calendario o vaciado de datos'
     },
     appointments: {
       icon: <CalendarX2 className="w-5 h-5" />,
@@ -73,12 +67,6 @@ export default function ResetAgendaModal({
       iconClasses: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
       title: 'VACIAR TODO',
       subtitle: 'Confirmá si querés eliminar todos los datos de la agenda'
-    },
-    demo: {
-      icon: <RotateCcw className="w-5 h-5" />,
-      iconClasses: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-      title: 'DATOS DE DEMOSTRACIÓN',
-      subtitle: 'Seleccioná qué información desea vaciar o reiniciar'
     }
   } as const;
 
@@ -162,53 +150,16 @@ export default function ResetAgendaModal({
                   Vaciar Todo
                 </button>
               </div>
-
-              {/* Action 3: Cargar Datos de Prueba / Demostración */}
-              <div className="p-4 rounded-2xl border-2 border-teal-200 bg-teal-50/50 hover:bg-teal-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="text-xs font-black text-teal-950 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-teal-600" />
-                    Cargar datos de prueba / demostración
-                  </div>
-                  <p className="text-[11px] text-teal-800 leading-snug">
-                    Carga pacientes de ejemplo de Rosario (Swiss Medical, La Segunda, OSDE) y turnos para mostrar la funcionalidad completa.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleAction('demo')}
-                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs shrink-0 self-start sm:self-auto transition-colors"
-                >
-                  Cargar Demo
-                </button>
-              </div>
             </>
           ) : (
             /* Confirmation Step */
             <div className="space-y-5 py-2">
-              <div
-                className={`p-4 rounded-2xl border flex items-start gap-3 ${
-                  confirmStep === 'demo'
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : 'bg-rose-50 border-rose-200 text-rose-900'
-                }`}
-              >
-                <div
-                  className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    confirmStep === 'demo'
-                      ? 'bg-emerald-100 text-emerald-600'
-                      : 'bg-rose-100 text-rose-600'
-                  }`}
-                >
-                  {confirmStep === 'demo' ? (
-                    <RotateCcw className="w-4 h-4" />
-                  ) : (
-                    <ShieldAlert className="w-4 h-4" />
-                  )}
+              <div className="p-4 rounded-2xl border flex items-start gap-3 bg-rose-50 border-rose-200 text-rose-900">
+                <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-rose-100 text-rose-600">
+                  <ShieldAlert className="w-4 h-4" />
                 </div>
                 <div className="space-y-1">
                   <div className="font-bold text-sm">
-                    {confirmStep === 'demo' && '¿Confirmar carga de datos de muestra?'}
                     {confirmStep === 'appointments' && '¿Confirmar vaciado de turnos?'}
                     {confirmStep === 'all' && '¿Confirmar vaciado total?'}
                   </div>
@@ -218,9 +169,6 @@ export default function ResetAgendaModal({
                     )}
                     {confirmStep === 'appointments' && (
                       <>Estás a punto de <strong>eliminar TODOS los turnos agendados</strong> del calendario. Los pacientes registrados se mantendrán.</>
-                    )}
-                    {confirmStep === 'demo' && (
-                      <>Se reemplazarán los datos actuales por los pacientes y turnos de demostración. Esta acción no se puede deshacer.</>
                     )}
                   </p>
                 </div>
@@ -237,18 +185,8 @@ export default function ResetAgendaModal({
                 <button
                   type="button"
                   onClick={handleExecuteConfirmed}
-                  className={`flex items-center gap-1.5 text-xs font-bold text-white px-5 py-2.5 rounded-xl shadow-xs transition-colors ${
-                    confirmStep === 'demo'
-                      ? 'bg-emerald-600 hover:bg-emerald-700'
-                      : 'bg-rose-600 hover:bg-rose-700'
-                  }`}
+                  className="flex items-center gap-1.5 text-xs font-bold text-white px-5 py-2.5 rounded-xl shadow-xs transition-colors bg-rose-600 hover:bg-rose-700"
                 >
-                  {confirmStep === 'demo' && (
-                    <>
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Sí, Cargar Datos de Muestra
-                    </>
-                  )}
                   {confirmStep === 'appointments' && 'Sí, Vaciar Turnos'}
                   {confirmStep === 'all' && 'Sí, Vaciar Todo'}
                 </button>

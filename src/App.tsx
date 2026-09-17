@@ -564,18 +564,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
-  const handleLoadDemoData = async () => {
-    try {
-      const { patients: p, appointments: a } = await api.loadDemoData();
-      setPatients(p);
-      setAppointments(a);
-      setLastImportBatch(null);
-      setAdminNotification({ message: 'Se restablecieron los datos de demostración.', type: 'success' });
-    } catch (err: any) {
-      showError(err.message || 'No se pudieron cargar los datos de demostración.');
-    }
-  };
-
   // Count pending reminders for current day
   const pendingRemindersToday = appointments.filter(
     (a) => a.fecha === currentDate && !a.recordatorioEnviado && a.estado !== 'cancelado'
@@ -791,7 +779,6 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         onClose={() => setIsResetAgendaModalOpen(false)}
         onClearAllData={handleClearAllData}
         onClearAppointmentsOnly={handleClearAppointmentsOnly}
-        onLoadDemoData={handleLoadDemoData}
         totalAppointments={appointments.length}
         totalPatients={patients.length}
       />
