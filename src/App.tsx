@@ -259,6 +259,31 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     };
   }, []);
 
+  // La agenda solo se trae del servidor una vez, al cargar la página — así
+  // que si un paciente confirma o cancela su turno desde el link de
+  // WhatsApp (en su propio celular, otra sesión completamente aparte)
+  // mientras el consultorio ya tiene la pantalla abierta, ese cambio no se
+  // ve reflejado hasta recargar a mano. Se refresca sola cada 30s mientras
+  // la pestaña está visible, y de inmediato al volver a esa pestaña (ej.
+  // después de estar en otra app/pestaña un rato) para que la espera sea
+  // mínima sin tener que sondear el servidor todo el tiempo en segundo plano.
+  useEffect(() => {
+    let cancelled = false;
+    const refreshAppointments = () => {
+      if (document.visibilityState !== 'visible') return;
+      api.fetchAppointments().then((a) => {
+        if (!cancelled) setAppointments(a);
+      });
+    };
+    const interval = setInterval(refreshAppointments, 30000);
+    document.addEventListener('visibilitychange', refreshAppointments);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshAppointments);
+    };
+  }, []);
+
   // RF-14: el toast de notificación (ej. "Se restablecieron los datos de
   // demostración") se cierra solo a los pocos segundos, además de poder
   // cerrarse manualmente con el botón "Cerrar".
