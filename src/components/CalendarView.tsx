@@ -204,10 +204,9 @@ export default function CalendarView({
     .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
   const filteredAppointments = dayAppointments.filter((a) => {
-    const matchesSearch =
-      `${a.pacienteNombre} ${a.pacienteDni} ${a.pacienteTelefono} ${a.obraSocial} ${a.tratamientoNombre}`
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+    const matchesSearch = `${a.pacienteNombre} ${a.pacienteDni}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
 
     const matchesTreatment =
       selectedTreatmentFilter === 'all' || a.tratamientoId === selectedTreatmentFilter;
@@ -504,7 +503,7 @@ export default function CalendarView({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar por paciente, DNI, celular, obra social..."
+            placeholder="Buscar por paciente o DNI..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/50"
@@ -522,7 +521,7 @@ export default function CalendarView({
               className="text-xs font-semibold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
             >
               <option value="all">Todos los Tratamientos</option>
-              {TREATMENTS.map((t) => (
+              {TREATMENTS.filter((t) => t.id !== 'no_dar').map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({t.durationMinutes} min)
                 </option>
