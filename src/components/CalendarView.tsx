@@ -750,7 +750,7 @@ export default function CalendarView({
                   </div>
 
                   {/* Right: Fees, Payment, Status & Quick WhatsApp */}
-                  <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2.5 sm:gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 w-full lg:w-auto">
+                  <div className="flex flex-wrap items-start justify-between lg:justify-end gap-2.5 sm:gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 w-full lg:w-auto">
                     {/* Honorarios Fee Box */}
                     <div className="text-left lg:text-right">
                       <div className="text-[11px] text-slate-500 font-medium">Honorarios</div>
