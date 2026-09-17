@@ -91,6 +91,19 @@ export default function PrintDailyScheduleModal({
     0
   );
 
+  const estadoPagoLabel = (apt: Appointment): string => {
+    switch (apt.estadoPago) {
+      case 'pagado':
+        return 'Cobrado';
+      case 'facturado':
+        return 'Facturado a OS';
+      case 'bonificado':
+        return 'Bonificado / Sin Cargo';
+      default:
+        return 'Pendiente';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
       {/* Modal Container */}
@@ -279,48 +292,60 @@ export default function PrintDailyScheduleModal({
                             {formatCurrency(currentInfo.fee)}
                           </div>
 
-                          {/* Interactive input in modal (hidden when printing) */}
-                          <div className="print:hidden mt-1 flex flex-col items-end gap-1">
-                            <input
-                              type="text"
-                              placeholder="Escribir medio de pago..."
-                              value={currentInfo.method}
-                              onChange={(e) => handleMethodChange(apt.id, e.target.value)}
-                              className="w-36 text-[11px] px-2 py-0.5 border border-slate-300 rounded font-normal text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                            />
-                            <div className="flex gap-1 text-[9px] text-slate-400">
-                              <button
-                                type="button"
-                                onClick={() => handleMethodChange(apt.id, 'Efectivo')}
-                                className="hover:text-teal-700 hover:underline"
-                              >
-                                Efectivo
-                              </button>
-                              <span>•</span>
-                              <button
-                                type="button"
-                                onClick={() => handleMethodChange(apt.id, 'Transferencia')}
-                                className="hover:text-teal-700 hover:underline"
-                              >
-                                Transf.
-                              </button>
-                              <span>•</span>
-                              <button
-                                type="button"
-                                onClick={() => handleMethodChange(apt.id, 'Débito / Posnet')}
-                                className="hover:text-teal-700 hover:underline"
-                              >
-                                Débito
-                              </button>
-                            </div>
+                          {/* Estado del Pago: siempre visible */}
+                          <div className="text-[10px] font-semibold text-slate-600 mt-0.5">
+                            {estadoPagoLabel(apt)}
                           </div>
 
-                          {/* Plain text display when printed (no 'a definir' or 'pendiente') */}
-                          {currentInfo.method.trim() ? (
-                            <div className="hidden print:block text-[10px] font-semibold text-slate-700 uppercase mt-0.5">
-                              {currentInfo.method.trim()}
-                            </div>
-                          ) : null}
+                          {/* El medio de pago solo tiene sentido (y solo se pide) una vez
+                              que el turno está Cobrado — si todavía no se sabe, no se
+                              muestra el campo para no confundir con "a definir". */}
+                          {apt.estadoPago === 'pagado' && (
+                            <>
+                              {/* Interactive input in modal (hidden when printing) */}
+                              <div className="print:hidden mt-1 flex flex-col items-end gap-1">
+                                <input
+                                  type="text"
+                                  placeholder="Escribir medio de pago..."
+                                  value={currentInfo.method}
+                                  onChange={(e) => handleMethodChange(apt.id, e.target.value)}
+                                  className="w-36 text-[11px] px-2 py-0.5 border border-slate-300 rounded font-normal text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
+                                />
+                                <div className="flex gap-1 text-[9px] text-slate-400">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMethodChange(apt.id, 'Efectivo')}
+                                    className="hover:text-teal-700 hover:underline"
+                                  >
+                                    Efectivo
+                                  </button>
+                                  <span>•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMethodChange(apt.id, 'Transferencia')}
+                                    className="hover:text-teal-700 hover:underline"
+                                  >
+                                    Transf.
+                                  </button>
+                                  <span>•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMethodChange(apt.id, 'Débito / Posnet')}
+                                    className="hover:text-teal-700 hover:underline"
+                                  >
+                                    Débito
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Plain text display when printed (no 'a definir' or 'pendiente') */}
+                              {currentInfo.method.trim() ? (
+                                <div className="hidden print:block text-[10px] font-semibold text-slate-700 uppercase mt-0.5">
+                                  {currentInfo.method.trim()}
+                                </div>
+                              ) : null}
+                            </>
+                          )}
                         </td>
 
                         {/* Observaciones */}
@@ -343,21 +368,12 @@ export default function PrintDailyScheduleModal({
           <span className="text-xs text-slate-500">
             Consejo: En el cuadro de diálogo de impresión, puedes elegir "Guardar como PDF".
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
-            >
-              Cerrar
-            </button>
-            <button
-              onClick={handlePrint}
-              className="px-4 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Imprimir</span>
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
