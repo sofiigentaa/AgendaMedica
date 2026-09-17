@@ -69,7 +69,7 @@ export default function AppointmentModal({
 
   const resolveNumeroAfiliado = (obraSocialValue: string, rawNumeroAfiliado?: string) => {
     const safeIns = (obraSocialValue || 'Particular').toLowerCase();
-    if (safeIns.includes('particular') || safeIns.includes('sin cobertura')) return '';
+    if (safeIns.includes('particular') || safeIns.includes('sin cobertura') || safeIns.includes('la segunda')) return '';
     return rawNumeroAfiliado || '';
   };
 
@@ -98,6 +98,9 @@ export default function AppointmentModal({
     } else if (preset === 'la_segunda') {
       setObraSocial('La Segunda');
       setCoberturaTipo('obra_social');
+      // La Segunda no usa N° de credencial/afiliado; el campo queda oculto,
+      // así que también se limpia por si venía cargado de un preset anterior.
+      setNumeroAfiliado('');
     } else {
       setCoberturaTipo('obra_social');
       if (obraSocial === 'Particular' || obraSocial === 'La Segunda' || !obraSocial) {

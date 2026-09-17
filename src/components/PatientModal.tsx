@@ -94,6 +94,8 @@ export default function PatientModal({
       setNumeroAfiliado('');
     } else if (preset === 'la_segunda') {
       setObraSocial('La Segunda');
+      // La Segunda no usa N° de credencial/afiliado para estos pacientes.
+      setNumeroAfiliado('');
     } else {
       if (obraSocial === 'Particular' || obraSocial === 'La Segunda' || !obraSocial) {
         setObraSocial('');
@@ -182,7 +184,7 @@ export default function PatientModal({
       fechaNacimiento,
       coberturaTipo: finalObraSocial === 'Particular' ? 'particular' : 'obra_social',
       obraSocial: finalObraSocial,
-      numeroAfiliado: coberturaPreset === 'particular' ? '' : numeroAfiliado.trim(),
+      numeroAfiliado: coberturaPreset === 'particular' || coberturaPreset === 'la_segunda' ? '' : numeroAfiliado.trim(),
       notasMedicas: notasMedicas.trim(),
       createdAt: patientToEdit ? patientToEdit.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -417,7 +419,7 @@ export default function PatientModal({
                 )}
               </div>
 
-              {coberturaPreset !== 'particular' && (
+              {coberturaPreset !== 'particular' && coberturaPreset !== 'la_segunda' && (
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                     N° de Credencial / Afiliado
