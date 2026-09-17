@@ -468,9 +468,23 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         return;
       }
 
+      // Cada click en "Actualizar Turnos" vuelve a traer TODA la planilla, así
+      // que sin este filtro cada sincronización duplicaba los turnos/bloqueos
+      // que ya se habían importado antes (se guardan con un id nuevo cada vez,
+      // no hay forma de que el upsert por id los reconozca como el mismo).
+      // Se considera "ya existente" un turno con la misma fecha, horario,
+      // tratamiento y DNI de paciente que uno ya cargado en la agenda.
+      const existingKeys = new Set(
+        appointments.map((a) => `${a.fecha}|${a.horaInicio}|${a.horaFin}|${a.tratamientoId}|${a.pacienteDni}`)
+      );
+      const newAppointments = parsed.appointments.filter(
+        (a) => !existingKeys.has(`${a.fecha}|${a.horaInicio}|${a.horaFin}|${a.tratamientoId}|${a.pacienteDni}`)
+      );
+      const alreadySyncedCount = parsed.appointments.length - newAppointments.length;
+
       const savedOnes: Appointment[] = [];
       let failedToSaveCount = 0;
-      for (const appointment of parsed.appointments) {
+      for (const appointment of newAppointments) {
         try {
           const saved = await api.saveAppointment(appointment);
           savedOnes.push(saved);
@@ -484,6 +498,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
       const parts: string[] = [];
       if (savedOnes.length > 0) parts.push(`${savedOnes.length} turno(s) sincronizado(s)`);
+      if (alreadySyncedCount > 0) parts.push(`${alreadySyncedCount} ya estaban sincronizados`);
       if (parsed.skippedNoPatientMatch > 0) {
         parts.push(`${parsed.skippedNoPatientMatch} sin paciente coincidente en el Padrón`);
       }
