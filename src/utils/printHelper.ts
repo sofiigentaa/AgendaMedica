@@ -496,8 +496,11 @@ export function printDailyScheduleReport(
   appointments: Appointment[],
   customPayments: Record<string, { method: string; fee: number }>
 ): void {
+  // Los bloqueos (NO DAR / NO ESTOY) no son turnos de pacientes — se excluyen
+  // de esta hoja para imprimir/entregar, que es solo la lista de pacientes
+  // del día.
   const dayAppointments = appointments
-    .filter((a) => a.fecha === date)
+    .filter((a) => a.fecha === date && !a.esBloqueo && a.tratamientoId !== 'no_dar')
     .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
   const totalCalculated = dayAppointments.reduce(
@@ -505,29 +508,27 @@ export function printDailyScheduleReport(
     0
   );
 
-  const totalTurnos = dayAppointments.filter((a) => !a.esBloqueo && a.tratamientoId !== 'no_dar').length;
-  const totalConfirmados = dayAppointments.filter(
-    (a) => a.estado === 'confirmado' && !a.esBloqueo && a.tratamientoId !== 'no_dar'
-  ).length;
+  const totalTurnos = dayAppointments.length;
+  const totalConfirmados = dayAppointments.filter((a) => a.estado === 'confirmado').length;
+
+  const estadoPagoLabel = (apt: Appointment): string => {
+    switch (apt.estadoPago) {
+      case 'pagado':
+        return 'Cobrado';
+      case 'facturado':
+        return 'Facturado a OS';
+      case 'bonificado':
+        return 'Bonificado / Sin Cargo';
+      default:
+        return 'Pendiente';
+    }
+  };
 
   const rowsHtml =
     dayAppointments.length === 0
       ? `<tr><td colspan="7" class="text-center" style="padding: 24px; color: #64748b;">No hay turnos agendados para esta fecha (${date}).</td></tr>`
       : dayAppointments
           .map((apt) => {
-            const isBlocked = apt.esBloqueo || apt.tratamientoId === 'no_dar';
-            if (isBlocked) {
-              return `
-            <tr class="blocked-row">
-              <td class="text-center font-mono font-bold">${apt.horaInicio} - ${apt.horaFin}</td>
-              <td colspan="3" class="font-bold">⛔ BLOQUEO DE AGENDA (NO DAR TURNOS)</td>
-              <td class="text-center">-</td>
-              <td class="text-right">-</td>
-              <td>${escapeHtml(apt.observaciones || 'Franja horaria no disponible')}</td>
-            </tr>
-          `;
-            }
-
             const currentInfo = customPayments[apt.id] || {
               method: '',
               fee: Number(apt.honorarios) || 0
@@ -551,8 +552,9 @@ export function printDailyScheduleReport(
             </td>
             <td class="text-right">
               <div class="font-mono font-bold">${formatCurrency(currentInfo.fee)}</div>
+              <div style="font-size: 8.5px; font-weight: 600; color: #475569;">${escapeHtml(estadoPagoLabel(apt))}</div>
               ${
-                currentInfo.method
+                apt.estadoPago === 'pagado' && currentInfo.method
                   ? `<div style="font-size: 8.5px; font-weight: 700; color: #0d9488; text-transform: uppercase;">${escapeHtml(currentInfo.method)}</div>`
                   : ''
               }

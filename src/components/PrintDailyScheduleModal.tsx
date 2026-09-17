@@ -28,8 +28,11 @@ export default function PrintDailyScheduleModal({
   // State to allow user to write/override custom payment method and fee for any appointment before printing
   const [customPayments, setCustomPayments] = useState<Record<string, { method: string; fee: number }>>({});
 
+  // Los bloqueos (NO DAR / NO ESTOY) no son turnos de pacientes — se excluyen
+  // de esta hoja para imprimir/entregar, que es solo la lista de pacientes
+  // del día.
   const dayAppointments = appointments
-    .filter((a) => a.fecha === date)
+    .filter((a) => a.fecha === date && !a.esBloqueo && a.tratamientoId !== 'no_dar')
     .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
   // Initialize or synchronize custom payment methods and fees when appointments load
@@ -173,14 +176,12 @@ export default function PrintDailyScheduleModal({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5 text-center text-xs">
             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
               <div className="text-slate-500 font-medium">Total Turnos</div>
-              <div className="text-lg font-black text-slate-900">
-                {dayAppointments.filter((a) => !a.esBloqueo && a.tratamientoId !== 'no_dar').length}
-              </div>
+              <div className="text-lg font-black text-slate-900">{dayAppointments.length}</div>
             </div>
             <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-200">
               <div className="text-sky-700 font-medium">Confirmados</div>
               <div className="text-lg font-black text-sky-950">
-                {dayAppointments.filter((a) => a.estado === 'confirmado' && !a.esBloqueo && a.tratamientoId !== 'no_dar').length}
+                {dayAppointments.filter((a) => a.estado === 'confirmado').length}
               </div>
             </div>
             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
@@ -212,36 +213,6 @@ export default function PrintDailyScheduleModal({
                 </thead>
                 <tbody className="divide-y divide-slate-200 font-normal">
                   {dayAppointments.map((apt) => {
-                    const isBlocked = apt.esBloqueo || apt.tratamientoId === 'no_dar';
-
-                    if (isBlocked) {
-                      return (
-                        <tr key={apt.id} className="bg-slate-100/80">
-                          <td className="p-2 border-r border-slate-300 text-center font-bold font-mono text-slate-900 whitespace-nowrap">
-                            {apt.horaInicio} - {apt.horaFin}
-                            <span className="block text-[10px] text-slate-500 font-normal">
-                              ({apt.duracionMinutos}m)
-                            </span>
-                          </td>
-                          <td colSpan={2} className="p-2 border-r border-slate-300 font-black text-rose-800">
-                            ⛔ HORARIO BLOQUEADO (NO DAR TURNOS)
-                          </td>
-                          <td className="p-2 border-r border-slate-300 font-semibold text-slate-700 italic">
-                            Franja No Disponible
-                          </td>
-                          <td className="p-2 border-r border-slate-300 text-slate-400">
-                            -
-                          </td>
-                          <td className="p-2 border-r border-slate-300 text-right font-bold text-slate-400">
-                            -
-                          </td>
-                          <td className="p-2 text-slate-700 font-medium">
-                            {apt.observaciones || 'No dar turnos en este horario'}
-                          </td>
-                        </tr>
-                      );
-                    }
-
                     const currentInfo = customPayments[apt.id] || {
                       method: '',
                       fee: Number(apt.honorarios) || 0
