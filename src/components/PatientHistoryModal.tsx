@@ -1,4 +1,4 @@
-import { X, History, CalendarClock, Clock, Stethoscope, DollarSign, Shield, MessageCircle } from 'lucide-react';
+import { X, History, CalendarClock, Clock, Stethoscope, DollarSign, Shield, MessageCircle, CalendarPlus } from 'lucide-react';
 import { Patient, Appointment } from '../types';
 import { STATUS_LABELS, formatCurrency } from '../data/treatments';
 import { formatDatePretty } from '../utils/storage';
@@ -9,13 +9,15 @@ interface PatientHistoryModalProps {
   onClose: () => void;
   patient: Patient | null;
   appointments: Appointment[];
+  onBookAppointment?: (patient: Patient) => void;
 }
 
 export default function PatientHistoryModal({
   isOpen,
   onClose,
   patient,
-  appointments
+  appointments,
+  onBookAppointment
 }: PatientHistoryModalProps) {
   if (!isOpen || !patient) return null;
 
@@ -77,6 +79,17 @@ export default function PatientHistoryModal({
               <p className="text-xs text-slate-400">
                 Los turnos y motivos que se le asignen van a aparecer acá.
               </p>
+              {onBookAppointment && (
+                <button
+                  onClick={() => onBookAppointment(patient)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3.5 py-2 rounded-xl transition-colors mt-1"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5" />
+                  <span>
+                    Crear turno para {patient.nombre} {patient.apellido}
+                  </span>
+                </button>
+              )}
             </div>
           ) : (
             patientAppointments.map((appt) => {

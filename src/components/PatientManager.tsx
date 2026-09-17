@@ -388,6 +388,10 @@ export default function PatientManager({
         onClose={() => setPatientForHistory(null)}
         patient={patientForHistory}
         appointments={appointments}
+        onBookAppointment={(patient) => {
+          setPatientForHistory(null);
+          onBookAppointmentForPatient(patient);
+        }}
       />
     </div>
   );
