@@ -683,7 +683,7 @@ export default function CalendarView({
                     : 'border-slate-200 hover:border-teal-300'
                 }`}
               >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                   {/* Left: Time block, Patient & Treatment info */}
                   <div className="flex items-start gap-3.5">
                     {/* Time block */}
@@ -750,9 +750,9 @@ export default function CalendarView({
                   </div>
 
                   {/* Right: Fees, Payment, Status & Quick WhatsApp */}
-                  <div className="flex flex-wrap items-start justify-between lg:justify-end gap-2.5 sm:gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 w-full lg:w-auto">
+                  <div className="flex flex-wrap items-start justify-between xl:justify-end gap-2.5 sm:gap-3 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-100 w-full xl:w-auto">
                     {/* Honorarios Fee Box */}
-                    <div className="text-left lg:text-right">
+                    <div className="text-left xl:text-right">
                       <div className="text-[11px] text-slate-500 font-medium">Honorarios</div>
                       <div className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                         {formatCurrency(appt.honorarios)}
@@ -767,7 +767,7 @@ export default function CalendarView({
                       <select
                         value={appt.estado}
                         onChange={(e) => onUpdateStatus(appt.id, e.target.value as AppointmentStatus)}
-                        className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] shadow-2xs ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+                        className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] w-[150px] shadow-2xs ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
                       >
                         <option value="confirmado">Confirmado</option>
                         <option value="atendido">Atendido / Listo</option>
@@ -777,7 +777,7 @@ export default function CalendarView({
                     </div>
 
                     {/* Quick Action buttons */}
-                    <div className="flex items-center gap-1.5 ml-auto lg:ml-0">
+                    <div className="flex items-center gap-1.5 ml-auto xl:ml-0">
                       {appt.estado !== 'cancelado' && (
                         <div>
                           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">
@@ -792,7 +792,7 @@ export default function CalendarView({
                               onUpdatePayment(appt.id, nextPayment, nextPayment === 'pagado' ? currentMethod : 'pendiente');
                             }}
                             title="Cambiar el estado de pago, sin abrir el turno"
-                            className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] shadow-2xs ${
+                            className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] w-[170px] shadow-2xs ${
                               appt.estadoPago === 'pagado'
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 : appt.estadoPago === 'facturado'
