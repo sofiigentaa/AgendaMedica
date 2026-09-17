@@ -312,16 +312,16 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
           continue;
         }
 
-        // El template marca un horario reservado (cirugía, reunión, etc.)
-        // escribiendo "NO DAR" en la columna de nombre para cada franja que
-        // cubre, con el resto de la fila en "#N/A" (una búsqueda de paciente
-        // que no encontró nada). En vez de tratarlas como turnos con paciente
-        // no encontrado (que las dejaba afuera silenciosamente) o crear un
-        // bloqueo separado por cada franja de 15/30 min, se fusionan las
-        // franjas "NO DAR" consecutivas en un único bloqueo de agenda — el
-        // mismo tipo de registro que crea "Bloquear Horario (NO DAR)" a
-        // mano — así el calendario muestra un solo bloque en vez de una fila
-        // de mini-bloqueos pegados.
+        // El template marca un horario reservado (cirugía, reunión, ausencia,
+        // etc.) escribiendo "NO DAR" o "NO ESTOY" en la columna de nombre
+        // para cada franja que cubre, con el resto de la fila en "#N/A" (una
+        // búsqueda de paciente que no encontró nada). En vez de tratarlas
+        // como turnos con paciente no encontrado (que las dejaba afuera
+        // silenciosamente) o crear un bloqueo separado por cada franja de
+        // 15/30 min, se fusionan las franjas consecutivas en un único
+        // bloqueo de agenda — el mismo tipo de registro que crea "Bloquear
+        // Horario (NO DAR)" a mano — así el calendario muestra un solo
+        // bloque en vez de una fila de mini-bloqueos pegados.
         let noDarStart: string | null = null;
         let noDarEnd: string | null = null;
         const flushNoDarRun = () => {
@@ -350,7 +350,7 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
             metodoPago: 'pendiente',
             recordatorioEnviado: false,
             esBloqueo: true,
-            observaciones: 'Importado desde la hoja de Google Sheets (NO DAR).',
+            observaciones: 'Importado desde la hoja de Google Sheets (NO DAR / NO ESTOY).',
             createdAt: now,
             updatedAt: now
           });
@@ -370,7 +370,8 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
           totalSlotsScanned++;
           const nombreCombinado = (row[columns.nombre] || '').trim();
 
-          if (normalizeKey(nombreCombinado) === 'nodar') {
+          const nombreCombinadoKey = normalizeKey(nombreCombinado);
+          if (nombreCombinadoKey === 'nodar' || nombreCombinadoKey === 'noestoy') {
             const duracionCell = columns.duracion >= 0 ? row[columns.duracion] || '' : '';
             const horaFinCell = columns.horaFin >= 0 ? normalizeClockTime(row[columns.horaFin] || '') : '';
             let duracionMinutos = parseDurationMinutes(duracionCell);
@@ -488,15 +489,29 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
       }
     }
 
+    // La planilla real tiene hojas "Copia de <Mes>" que son un duplicado casi
+    // exacto de la hoja original (mismas fechas/turnos) — sin este filtro,
+    // cada turno y cada bloqueo (NO DAR / NO ESTOY) del mes duplicado
+    // aparecería dos veces en la agenda. Se descarta cualquier entrada que
+    // coincida en fecha + horario + tratamiento + DNI con una ya vista,
+    // sin importar de qué hoja vino.
+    const seenKeys = new Set<string>();
+    const dedupedAppointments = appointments.filter((appt) => {
+      const key = `${appt.fecha}|${appt.horaInicio}|${appt.horaFin}|${appt.tratamientoId}|${appt.pacienteDni}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+
     return {
-      success: appointments.length > 0,
-      appointments,
+      success: dedupedAppointments.length > 0,
+      appointments: dedupedAppointments,
       warnings,
-      errors: appointments.length === 0 && warnings.length === 0
+      errors: dedupedAppointments.length === 0 && warnings.length === 0
         ? ['No se encontró ningún bloque de día reconocible (encabezados "Dia" / "Fecha") en ninguna hoja del archivo.']
         : [],
       totalSlotsScanned,
-      importedCount: appointments.length,
+      importedCount: dedupedAppointments.length,
       skippedNoPatientMatch
     };
   } catch (err: any) {
