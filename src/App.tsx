@@ -660,13 +660,14 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
 
   const handleClearCancelledAppointments = async () => {
     try {
-      const { removed } = await api.deleteCancelledAppointments();
+      const sheetIdMatch = TURNOS_GOOGLE_SHEETS_URL.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      const { removed, syncedToSheet } = await api.deleteCancelledAppointments(sheetIdMatch?.[1]);
       setAppointments((prev) => prev.filter((a) => a.estado !== 'cancelado'));
+      const parts: string[] = [];
+      if (removed > 0) parts.push(`Se eliminaron ${removed} turno(s) cancelado(s) de toda la agenda.`);
+      if (syncedToSheet > 0) parts.push(`${syncedToSheet} marcado(s) "CANCELADO" en Google Sheets.`);
       setAdminNotification({
-        message:
-          removed > 0
-            ? `Se eliminaron ${removed} turno(s) cancelado(s) de toda la agenda.`
-            : 'No había turnos cancelados para eliminar.',
+        message: parts.length > 0 ? parts.join(' ') : 'No había turnos cancelados para eliminar.',
         type: 'success'
       });
     } catch (err: any) {

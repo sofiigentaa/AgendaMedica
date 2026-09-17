@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Appointment } from '@prisma/client';
 import { prisma } from '../db';
 import { calculateDurationMinutes } from '../../src/data/treatments';
+import { isGoogleSheetsWriteConfigured, writeCancelledMarkerToSheet } from '../googleSheetsClient';
 
 // Turnos con paciente real: se agrupan por igualdad EXACTA de
 // fecha+horario+tratamiento+DNI (misma clave que usa la sincronización de
@@ -122,10 +123,33 @@ export function createAppointmentsRouter(): Router {
 
   // Elimina TODOS los turnos con estado "cancelado", en cualquier fecha —
   // pedido desde Vista Día como forma de mantener la agenda limpia de
-  // cancelaciones viejas que ya no aportan nada.
-  router.delete('/cancelados', async (_req: Request, res: Response) => {
+  // cancelaciones viejas que ya no aportan nada. Si un turno se importó
+  // desde Google Sheets ("Actualizar Turnos" guarda de qué hoja/fila vino),
+  // antes de borrarlo localmente se escribe "CANCELADO" en esa misma celda,
+  // para que la planilla del médico también quede al día. Si no hay
+  // credenciales configuradas o esa escritura puntual falla, el turno se
+  // borra igual — nunca bloquea la limpieza local por un problema con Sheets.
+  router.delete('/cancelados', async (req: Request, res: Response) => {
+    const spreadsheetId = typeof req.body?.spreadsheetId === 'string' ? req.body.spreadsheetId : null;
+    const cancelled = await prisma.appointment.findMany({ where: { estado: 'cancelado' } });
+
+    let syncedToSheet = 0;
+    let sheetSyncErrors = 0;
+    if (spreadsheetId && isGoogleSheetsWriteConfigured()) {
+      for (const appt of cancelled) {
+        if (!appt.sourceSheetName || appt.sourceRowNumber == null || appt.sourceNameColumn == null) continue;
+        try {
+          await writeCancelledMarkerToSheet(spreadsheetId, appt.sourceSheetName, appt.sourceRowNumber, appt.sourceNameColumn);
+          syncedToSheet++;
+        } catch (err) {
+          console.error('No se pudo marcar CANCELADO en Google Sheets para', appt.id, err);
+          sheetSyncErrors++;
+        }
+      }
+    }
+
     const { count } = await prisma.appointment.deleteMany({ where: { estado: 'cancelado' } });
-    res.json({ removed: count });
+    res.json({ removed: count, syncedToSheet, sheetSyncErrors });
   });
 
   // Upsert by id, same rationale as patients: one record per write, so
@@ -168,7 +192,10 @@ export function createAppointmentsRouter(): Router {
       respuestaPacienteTipo: data.respuestaPacienteTipo || null,
       respuestaPacienteAt: data.respuestaPacienteAt || null,
       observaciones: data.observaciones || '',
-      esBloqueo: Boolean(data.esBloqueo)
+      esBloqueo: Boolean(data.esBloqueo),
+      sourceSheetName: data.sourceSheetName || null,
+      sourceRowNumber: data.sourceRowNumber != null ? Number(data.sourceRowNumber) : null,
+      sourceNameColumn: data.sourceNameColumn != null ? Number(data.sourceNameColumn) : null
     };
 
     const saved = await prisma.appointment.upsert({

@@ -95,8 +95,17 @@ export function removeDuplicateAppointments(): Promise<{ removed: number }> {
   return request('/api/appointments/duplicates', { method: 'DELETE' });
 }
 
-export function deleteCancelledAppointments(): Promise<{ removed: number }> {
-  return request('/api/appointments/cancelados', { method: 'DELETE' });
+export interface ClearCancelledResult {
+  removed: number;
+  syncedToSheet: number;
+  sheetSyncErrors: number;
+}
+
+export function deleteCancelledAppointments(spreadsheetId?: string): Promise<ClearCancelledResult> {
+  return request('/api/appointments/cancelados', {
+    method: 'DELETE',
+    body: JSON.stringify({ spreadsheetId })
+  });
 }
 
 // --- Holidays ---

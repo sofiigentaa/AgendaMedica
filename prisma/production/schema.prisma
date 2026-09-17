@@ -71,6 +71,13 @@ model Appointment {
   observaciones String  @default("")
   esBloqueo     Boolean @default(false)
 
+  // Dónde vino este turno dentro de la hoja de Google Sheets (si se creó por
+  // "Actualizar Turnos" y no a mano) — permite escribir "CANCELADO" de vuelta
+  // en la celda exacta cuando se limpia el turno cancelado desde la agenda.
+  sourceSheetName  String?
+  sourceRowNumber  Int?
+  sourceNameColumn Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

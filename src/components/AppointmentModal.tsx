@@ -507,6 +507,12 @@ export default function AppointmentModal({
       ultimoRecordatorioAt: appointmentToEdit ? appointmentToEdit.ultimoRecordatorioAt : undefined,
       observaciones,
       esBloqueo: false,
+      // Se conservan si este turno vino de "Actualizar Turnos" — permiten
+      // escribir "CANCELADO" de vuelta en la celda exacta de Google Sheets
+      // al limpiarlo; un turno cargado a mano nunca las tiene.
+      sourceSheetName: appointmentToEdit?.sourceSheetName,
+      sourceRowNumber: appointmentToEdit?.sourceRowNumber,
+      sourceNameColumn: appointmentToEdit?.sourceNameColumn,
       createdAt: appointmentToEdit ? appointmentToEdit.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

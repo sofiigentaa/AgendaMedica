@@ -486,6 +486,9 @@ function parseTurnosWorkbookBuffer(buffer: ArrayBuffer, patients: Patient[]): Tu
             estadoPago: 'pendiente',
             metodoPago: 'pendiente',
             recordatorioEnviado: false,
+            sourceSheetName: sheetName,
+            sourceRowNumber: r + 1,
+            sourceNameColumn: columns.nombre,
             createdAt: now,
             updatedAt: now
           });

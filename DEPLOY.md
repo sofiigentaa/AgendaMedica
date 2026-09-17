@@ -62,6 +62,19 @@ Cualquier cambio a los modelos hay que reflejarlo a mano en **ambos** schemas (`
    Esto genera la migración en `prisma/production/migrations/` y la aplica contra esa base en el mismo paso.
 3. Commiteá ambas carpetas de migraciones (`prisma/migrations/` y `prisma/production/migrations/`) y pusheá — el próximo deploy en Render aplica la migración de Postgres automáticamente vía `npm start`.
 
+## Sincronizar cancelaciones a Google Sheets (opcional)
+
+Por defecto la sincronización con Google Sheets es de una sola vía (la hoja hacia la app, con "Actualizar Turnos"). Si además querés que "Limpiar Turnos Cancelados" escriba `CANCELADO` en la celda de la planilla de donde vino cada turno cancelado (en vez de solo borrarlo localmente), hace falta darle a la app permiso de **escritura** sobre esa hoja puntual:
+
+1. Entrá a [console.cloud.google.com](https://console.cloud.google.com/) → creá un proyecto (o usá uno existente) → **APIs y servicios → Biblioteca** → buscá **Google Sheets API** → Habilitar.
+2. **APIs y servicios → Credenciales → + Crear credenciales → Cuenta de servicio**. Creála (no hace falta asignarle roles de proyecto).
+3. Entrá a esa cuenta de servicio → pestaña **Claves → Agregar clave → Crear clave nueva → JSON**. Se descarga un archivo `.json`.
+4. Abrí ese archivo y copiá el email de `client_email` (termina en `...iam.gserviceaccount.com`).
+5. Abrí la hoja de Turnos en Google Sheets → **Compartir** → pegá ese email → dale permiso de **Editor**.
+6. Copiá el contenido COMPLETO del archivo `.json` y pegalo como el valor de la variable de entorno `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY` (en Render: pestaña Environment del Web Service; en local: tu `.env`) — todo en una sola línea, entre comillas simples.
+
+Sin esta variable configurada, "Limpiar Turnos Cancelados" sigue funcionando exactamente igual que antes (borra los turnos localmente); simplemente no toca la planilla.
+
 ## Notas
 
 - **`prisma` (el CLI) queda como devDependency**, no dependency — funciona en Render porque instala devDependencies durante el build y las mantiene disponibles para el `start` (no hace un "prune" de dev deps entre build y runtime). Si migrás a una plataforma que sí las poda, movés `prisma` a `dependencies`.

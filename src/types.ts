@@ -115,6 +115,14 @@ export interface Appointment {
 
   observaciones?: string;
   esBloqueo?: boolean;
+
+  // De qué hoja/fila de Google Sheets vino este turno (si se importó por
+  // "Actualizar Turnos" y no se cargó a mano) — permite escribir "CANCELADO"
+  // de vuelta en la celda exacta al limpiar turnos cancelados.
+  sourceSheetName?: string;
+  sourceRowNumber?: number;
+  sourceNameColumn?: number;
+
   createdAt: string;
   updatedAt: string;
 }
