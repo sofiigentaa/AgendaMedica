@@ -47,6 +47,14 @@ Si en algún momento querés cambiar la contraseña del consultorio: `npm run ha
 
 Abrí la URL, ingresá con la contraseña del consultorio. La base arranca vacía — desde **Backups → Gestionar / Restablecer Agenda → Cargar datos de demostración** podés cargar el set de ejemplo si querés mostrarla en una demo, o simplemente empezar a cargar pacientes reales.
 
+## Usar Supabase como base de datos (con RLS)
+
+1. En supabase.com creá un proyecto (elegí región cercana y una contraseña de base larga; guardala).
+2. En el proyecto: **Connect → Session pooler** y copiá la cadena (`postgresql://postgres.<ref>:<PASSWORD>@aws-0-<region>.pooler.supabase.com:5432/postgres`). Usá el *Session pooler* (puerto 5432), no la conexión directa: Render solo tiene IPv4 y la directa de Supabase es IPv6. Tampoco el *Transaction pooler* (6543): rompe las migraciones de Prisma.
+3. En Render, servicio web, **Environment**: poné `DATABASE_URL` con esa cadena y guardá. Al reiniciar, `npm start` corre `prisma migrate deploy`: crea las tablas y la migración `enable_rls` activa RLS en todas.
+4. Verificá en Supabase: **Table Editor** debe mostrar cada tabla con el candado de RLS activo y sin policies. Eso bloquea el acceso por la API pública de Supabase; la app sigue funcionando porque se conecta como dueño de las tablas.
+5. No pongas las claves `anon`/`service_role` en la app: no se usan.
+
 ## 5. Si cambiás el modelo de datos más adelante
 
 Cualquier cambio a los modelos hay que reflejarlo a mano en **ambos** schemas (`prisma/schema.prisma` y `prisma/production/schema.prisma` deben quedar con los mismos modelos).
