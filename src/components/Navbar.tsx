@@ -149,45 +149,50 @@ export default function Navbar({
         </div>
 
         {/* Date Selector in center - Truly centered and touch friendly (min 44px tap targets on mobile) */}
-        <div className="w-full md:w-auto flex-1 flex items-center justify-center">
-          <div className="flex items-center justify-between sm:justify-center w-full sm:w-auto gap-1 sm:gap-1.5 bg-slate-800/95 border border-slate-700 p-1 rounded-2xl shadow-xs">
-            <button
-              id="btn-prev-day"
-              onClick={handlePrevDay}
-              className="p-2 sm:p-1.5 hover:bg-slate-700 active:bg-slate-600 rounded-xl text-slate-200 hover:text-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
-              title="Día anterior"
-              aria-label="Día anterior"
-            >
-              <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
-            </button>
+        {/* Solo tiene sentido en Agenda de Turnos: en las demás pestañas
+            (Padrón, Cierre Diario, Respaldos) no navegan por fecha, así que
+            no se muestra ahí. */}
+        {activeTab === 'agenda' && (
+          <div className="w-full md:w-auto flex-1 flex items-center justify-center">
+            <div className="flex items-center justify-between sm:justify-center w-full sm:w-auto gap-1 sm:gap-1.5 bg-slate-800/95 border border-slate-700 p-1 rounded-2xl shadow-xs">
+              <button
+                id="btn-prev-day"
+                onClick={handlePrevDay}
+                className="p-2 sm:p-1.5 hover:bg-slate-700 active:bg-slate-600 rounded-xl text-slate-200 hover:text-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                title="Día anterior"
+                aria-label="Día anterior"
+              >
+                <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
+              </button>
 
-            <input
-              id="input-current-date"
-              type="date"
-              value={currentDate}
-              onChange={(e) => e.target.value && handleDateInputChange(e.target.value)}
-              className="bg-slate-900 border border-slate-700 text-slate-100 text-xs sm:text-xs font-bold px-3 py-2 sm:py-1 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer font-mono text-center flex-1 sm:flex-initial"
-            />
+              <input
+                id="input-current-date"
+                type="date"
+                value={currentDate}
+                onChange={(e) => e.target.value && handleDateInputChange(e.target.value)}
+                className="bg-slate-900 border border-slate-700 text-slate-100 text-xs sm:text-xs font-bold px-3 py-2 sm:py-1 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer font-mono text-center flex-1 sm:flex-initial"
+              />
 
-            <button
-              id="btn-next-day"
-              onClick={handleNextDay}
-              className="p-2 sm:p-1.5 hover:bg-slate-700 active:bg-slate-600 rounded-xl text-slate-200 hover:text-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
-              title="Día siguiente"
-              aria-label="Día siguiente"
-            >
-              <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
-            </button>
+              <button
+                id="btn-next-day"
+                onClick={handleNextDay}
+                className="p-2 sm:p-1.5 hover:bg-slate-700 active:bg-slate-600 rounded-xl text-slate-200 hover:text-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                title="Día siguiente"
+                aria-label="Día siguiente"
+              >
+                <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
+              </button>
 
-            <button
-              id="btn-today"
-              onClick={handleToday}
-              className="px-3 py-2 sm:py-1 text-xs font-bold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-xl transition-colors min-h-[40px] flex items-center justify-center"
-            >
-              Hoy
-            </button>
+              <button
+                id="btn-today"
+                onClick={handleToday}
+                className="px-3 py-2 sm:py-1 text-xs font-bold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-xl transition-colors min-h-[40px] flex items-center justify-center"
+              >
+                Hoy
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Right side: Import Excel button & Current time / Status on desktop */}
         <div className="hidden md:flex items-center justify-end gap-3 md:min-w-[220px]">

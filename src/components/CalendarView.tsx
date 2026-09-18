@@ -523,7 +523,7 @@ export default function CalendarView({
               <option value="all">Todos los Tratamientos</option>
               {TREATMENTS.filter((t) => t.id !== 'no_dar').map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.name} ({t.durationMinutes} min)
+                  {t.name}
                 </option>
               ))}
             </select>

@@ -132,7 +132,7 @@ export default function PrintDailyScheduleModal({
               className="px-4 py-1.5 text-xs font-bold text-slate-950 bg-teal-400 hover:bg-teal-300 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              <span>Imprimir / Guardar PDF</span>
+              <span>Imprimir</span>
             </button>
             <button
               onClick={onClose}

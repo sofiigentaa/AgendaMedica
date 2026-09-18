@@ -37,8 +37,10 @@ export default function DailyFinancialSummary({
   const [cierreMessage, setCierreMessage] = useState<string | null>(null);
 
   const summary = computeDailySummary(appointments, currentDate);
+  // Los bloqueos (NO DAR / NO ESTOY) no son turnos de pacientes — se excluyen
+  // de esta tabla de detalle, que es solo el desglose de cobros del día.
   const dayAppointments = appointments
-    .filter((a) => a.fecha === currentDate)
+    .filter((a) => a.fecha === currentDate && !a.esBloqueo && a.tratamientoId !== 'no_dar')
     .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
   const handleExportExcel = () => {

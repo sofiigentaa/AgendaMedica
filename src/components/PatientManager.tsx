@@ -78,10 +78,9 @@ export default function PatientManager({
 
   const filteredPatients = patients
     .filter((p) => {
-      const matchesSearch =
-        `${p.nombre} ${p.apellido} ${p.dni} ${p.telefono} ${p.email} ${p.obraSocial}`
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
+      const matchesSearch = `${p.nombre} ${p.apellido} ${p.dni}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
 
       const matchesInsurance =
         insuranceFilter === 'all' ||
@@ -168,7 +167,7 @@ export default function PatientManager({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar por DNI, Nombre, Apellido, Teléfono o Cobertura..."
+            placeholder="Buscar por Nombre, Apellido o DNI..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/50"
