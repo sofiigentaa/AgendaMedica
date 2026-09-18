@@ -19,6 +19,7 @@ interface AppointmentModalProps {
   allAppointments?: Appointment[];
   holidays?: HolidayOrNonWorkingDay[];
   onOpenNewPatientModal: () => void;
+  isEditingClosedDay?: boolean;
 }
 
 export default function AppointmentModal({
@@ -34,7 +35,8 @@ export default function AppointmentModal({
   patients,
   allAppointments = [],
   holidays = [],
-  onOpenNewPatientModal
+  onOpenNewPatientModal,
+  isEditingClosedDay = false
 }: AppointmentModalProps) {
   const [isBlockedMode, setIsBlockedMode] = useState(false);
   const [pacienteId, setPacienteId] = useState('');
@@ -623,6 +625,19 @@ export default function AppointmentModal({
         </div>
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
+          {/* Caja cerrada: el estado del turno y del pago no se pueden tocar. */}
+          {isEditingClosedDay && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3.5 flex items-start gap-3 text-amber-900 shadow-xs">
+              <Ban className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-black text-amber-950 text-sm">🔒 CAJA CERRADA</div>
+                <div className="mt-0.5 text-amber-800">
+                  La caja de este día ya fue cerrada: el estado del turno, del pago y el medio de pago no se pueden modificar.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Holiday or Non-Working Day Warning Banner */}
           {holidayInfo && (
             <div className="bg-rose-50 border-2 border-rose-400 rounded-xl p-3.5 flex items-start gap-3 text-rose-900 shadow-xs">
@@ -1268,7 +1283,9 @@ export default function AppointmentModal({
                     id="select-payment-status"
                     value={estadoPago}
                     onChange={(e) => setEstadoPago(e.target.value as PaymentStatus)}
-                    className={`w-full text-xs px-3 py-2 rounded-lg border bg-white focus:ring-1 focus:outline-none ${
+                    disabled={isEditingClosedDay}
+                    title={isEditingClosedDay ? 'La caja de este día está cerrada' : undefined}
+                    className={`w-full text-xs px-3 py-2 rounded-lg border bg-white focus:ring-1 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                       attemptedSubmit && !estadoPago
                         ? 'border-rose-400 focus:ring-rose-500'
                         : 'border-slate-300 focus:ring-teal-500'
@@ -1288,7 +1305,9 @@ export default function AppointmentModal({
                     id="select-payment-method"
                     value={metodoPago}
                     onChange={(e) => setMetodoPago(e.target.value as PaymentMethod)}
-                    className={`w-full text-xs px-3 py-2 rounded-lg border bg-white focus:ring-1 focus:outline-none ${
+                    disabled={isEditingClosedDay}
+                    title={isEditingClosedDay ? 'La caja de este día está cerrada' : undefined}
+                    className={`w-full text-xs px-3 py-2 rounded-lg border bg-white focus:ring-1 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                       attemptedSubmit && !metodoPago
                         ? 'border-rose-400 focus:ring-rose-500'
                         : 'border-slate-300 focus:ring-teal-500'
@@ -1318,7 +1337,9 @@ export default function AppointmentModal({
                       id="select-appointment-status"
                       value={estado}
                       onChange={(e) => setEstado(e.target.value as AppointmentStatus)}
-                      className={`w-full text-xs px-3 py-2 rounded-lg border bg-white focus:ring-1 focus:outline-none ${
+                      disabled={isEditingClosedDay}
+                      title={isEditingClosedDay ? 'La caja de este día está cerrada' : undefined}
+                      className={`w-full text-xs px-3 py-2 rounded-lg border bg-white focus:ring-1 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                         attemptedSubmit && !estado
                           ? 'border-rose-400 focus:ring-rose-500'
                           : 'border-slate-300 focus:ring-teal-500'

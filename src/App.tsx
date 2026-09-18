@@ -6,7 +6,8 @@ import {
   AppointmentStatus,
   PaymentStatus,
   PaymentMethod,
-  HolidayOrNonWorkingDay
+  HolidayOrNonWorkingDay,
+  DailyClosure
 } from './types';
 import { getTodayDateString, computeDailySummary, formatDatePretty } from './utils/storage';
 import { calculateDurationMinutes } from './data/treatments';
@@ -200,6 +201,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [holidays, setHolidays] = useState<HolidayOrNonWorkingDay[]>([]);
+  const [dailyClosures, setDailyClosures] = useState<DailyClosure[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState<string>(() => getTodayDateString());
@@ -241,12 +243,13 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   // synchronously seeding it on first render.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.fetchPatients(), api.fetchAppointments(), api.fetchHolidays()])
-      .then(([p, a, h]) => {
+    Promise.all([api.fetchPatients(), api.fetchAppointments(), api.fetchHolidays(), api.fetchDailyClosures()])
+      .then(([p, a, h, c]) => {
         if (cancelled) return;
         setPatients(p);
         setAppointments(a);
         setHolidays(h);
+        setDailyClosures(c);
         setIsLoadingData(false);
       })
       .catch((err) => {
@@ -396,13 +399,43 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  const isDateClosed = (date: string) => dailyClosures.some((c) => c.date === date);
+
   const handleUpdateStatus = (id: string, status: AppointmentStatus) => {
+    const current = appointments.find((a) => a.id === id);
+    if (current && isDateClosed(current.fecha)) {
+      showError('La caja de este día ya está cerrada: no se puede cambiar el estado del turno.');
+      return;
+    }
     patchAppointment(id, { estado: status });
   };
 
   const handleUpdatePayment = (id: string, estadoPago: PaymentStatus, metodoPago?: PaymentMethod) => {
     const current = appointments.find((a) => a.id === id);
+    if (current && isDateClosed(current.fecha)) {
+      showError('La caja de este día ya está cerrada: no se puede cambiar el estado del pago.');
+      return;
+    }
     patchAppointment(id, { estadoPago, metodoPago: metodoPago || current?.metodoPago });
+  };
+
+  const handleCloseCaja = async (date: string, totalPercibido: number) => {
+    try {
+      const saved = await api.closeDailyCaja(date, totalPercibido);
+      setDailyClosures((prev) => [...prev.filter((c) => c.date !== date), saved]);
+    } catch (err: any) {
+      showError(err.message || 'No se pudo cerrar la caja de este día.');
+      throw err;
+    }
+  };
+
+  const handleReopenCaja = async (date: string) => {
+    try {
+      await api.reopenDailyCaja(date);
+      setDailyClosures((prev) => prev.filter((c) => c.date !== date));
+    } catch (err: any) {
+      showError(err.message || 'No se pudo reabrir la caja de este día.');
+    }
   };
 
   const handleMarkReminderSent = (appointmentId: string) => {
@@ -817,6 +850,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             onSendReminder={(appointment) => handleMarkReminderSent(appointment.id)}
             onOpenPrintModal={() => setIsPrintModalOpen(true)}
             onClearCancelledAppointments={handleClearCancelledAppointments}
+            isDayClosed={isDateClosed(currentDate)}
           />
         )}
 
@@ -826,6 +860,9 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
             appointments={appointments}
             patients={patients}
             onUpdatePayment={handleUpdatePayment}
+            isDayClosed={isDateClosed(currentDate)}
+            onCloseCaja={handleCloseCaja}
+            onReopenCaja={handleReopenCaja}
           />
         )}
 
@@ -879,6 +916,7 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
         holidays={holidays}
         patients={patients}
         allAppointments={appointments}
+        isEditingClosedDay={!!appointmentToEdit && isDateClosed(appointmentToEdit.fecha)}
         onOpenNewPatientModal={() => {
           setPatientToEdit(null);
           setIsPatientModalOpen(true);

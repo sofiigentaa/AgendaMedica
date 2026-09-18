@@ -149,10 +149,9 @@ export default function Navbar({
         </div>
 
         {/* Date Selector in center - Truly centered and touch friendly (min 44px tap targets on mobile) */}
-        {/* Solo tiene sentido en Agenda de Turnos: en las demás pestañas
-            (Padrón, Cierre Diario, Respaldos) no navegan por fecha, así que
-            no se muestra ahí. */}
-        {activeTab === 'agenda' && (
+        {/* Se muestra en Agenda de Turnos y en Cierre Diario & Honorarios,
+            que sí navegan por fecha. En Padrón y Respaldos no aplica. */}
+        {(activeTab === 'agenda' || activeTab === 'finanzas') && (
           <div className="w-full md:w-auto flex-1 flex items-center justify-center">
             <div className="flex items-center justify-between sm:justify-center w-full sm:w-auto gap-1 sm:gap-1.5 bg-slate-800/95 border border-slate-700 p-1 rounded-2xl shadow-xs">
               <button

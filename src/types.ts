@@ -144,6 +144,13 @@ export interface HolidayOrNonWorkingDay {
   createdAt: string;
 }
 
+export interface DailyClosure {
+  id: string;
+  date: string; // YYYY-MM-DD
+  totalPercibido: number;
+  createdAt: string;
+}
+
 export interface DailySummary {
   fecha: string;
   totalHonorariosEsperados: number;

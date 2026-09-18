@@ -10,7 +10,9 @@ import {
   Sparkles,
   CreditCard,
   Building2,
-  AlertTriangle
+  AlertTriangle,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { Appointment, Patient, DailySummary, PaymentMethod } from '../types';
 import { formatDatePretty, computeDailySummary } from '../utils/storage';
@@ -18,6 +20,8 @@ import { formatCurrency } from '../data/treatments';
 import { generateDailyExcelWorkbook, generateAppointmentsCSV, triggerFileDownload } from '../utils/export';
 import { printDailyFinancialReport } from '../utils/printHelper';
 import PrintDailyFinancialModal from './PrintDailyFinancialModal';
+import CierreCajaModal from './CierreCajaModal';
+import ConfirmModal from './ConfirmModal';
 import confetti from 'canvas-confetti';
 
 interface DailyFinancialSummaryProps {
@@ -25,16 +29,25 @@ interface DailyFinancialSummaryProps {
   appointments: Appointment[];
   patients: Patient[];
   onUpdatePayment: (id: string, estadoPago: any, metodoPago?: PaymentMethod) => void;
+  isDayClosed: boolean;
+  onCloseCaja: (date: string, totalPercibido: number) => Promise<void>;
+  onReopenCaja: (date: string) => Promise<void>;
 }
 
 export default function DailyFinancialSummary({
   currentDate,
   appointments,
   patients,
-  onUpdatePayment
+  onUpdatePayment,
+  isDayClosed,
+  onCloseCaja,
+  onReopenCaja
 }: DailyFinancialSummaryProps) {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [cierreMessage, setCierreMessage] = useState<string | null>(null);
+  const [isConfirmingCierre, setIsConfirmingCierre] = useState(false);
+  const [isConfirmingReopen, setIsConfirmingReopen] = useState(false);
+  const [isCierreModalOpen, setIsCierreModalOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   const summary = computeDailySummary(appointments, currentDate);
   // Los bloqueos (NO DAR / NO ESTOY) no son turnos de pacientes — se excluyen
@@ -53,18 +66,31 @@ export default function DailyFinancialSummary({
     triggerFileDownload(csvContent, `Turnos_Honorarios_${currentDate}.csv`, 'text/csv;charset=utf-8;');
   };
 
-  const handleCierreCaja = () => {
-    setCierreMessage('✓ Caja Cerrada correctamente.');
-    setTimeout(() => setCierreMessage(null), 4000);
+  const handleConfirmCierreCaja = async () => {
+    setIsConfirmingCierre(false);
+    setIsClosing(true);
     try {
-      confetti({
-        particleCount: 70,
-        spread: 60,
-        origin: { y: 0.7 }
-      });
+      await onCloseCaja(currentDate, summary.totalHonorariosPercibidos);
+      setIsCierreModalOpen(true);
+      try {
+        confetti({
+          particleCount: 70,
+          spread: 60,
+          origin: { y: 0.7 }
+        });
+      } catch (e) {
+        // Ignore
+      }
     } catch (e) {
-      // Ignore
+      // El error ya se muestra vía el banner de notificación admin.
+    } finally {
+      setIsClosing(false);
     }
+  };
+
+  const handleConfirmReopen = async () => {
+    setIsConfirmingReopen(false);
+    await onReopenCaja(currentDate);
   };
 
   const handlePrint = () => {
@@ -117,20 +143,41 @@ export default function DailyFinancialSummary({
             <span className="hidden sm:inline">Imprimir</span>
           </button>
 
-          <button
-            onClick={handleCierreCaja}
-            className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Realizar Cierre de Caja</span>
-          </button>
+          {isDayClosed ? (
+            <>
+              <button
+                onClick={() => setIsCierreModalOpen(true)}
+                className="px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl flex items-center gap-1.5 transition-colors"
+              >
+                <Lock className="w-4 h-4 text-emerald-600" />
+                <span>Caja Cerrada — Ver Cartelito</span>
+              </button>
+              <button
+                onClick={() => setIsConfirmingReopen(true)}
+                title="Reabrir la caja de este día para poder corregir turnos"
+                className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl flex items-center gap-1.5 transition-colors"
+              >
+                <Unlock className="w-4 h-4" />
+                <span className="hidden sm:inline">Reabrir</span>
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsConfirmingCierre(true)}
+              disabled={isClosing}
+              className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all disabled:opacity-60"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{isClosing ? 'Cerrando...' : 'Realizar Cierre de Caja'}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {cierreMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 animate-fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>{cierreMessage}</span>
+      {isDayClosed && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2">
+          <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>La caja de este día está cerrada: los estados de turno y de pago no se pueden modificar.</span>
         </div>
       )}
 
@@ -401,10 +448,13 @@ export default function DailyFinancialSummary({
                     <td className="py-3 px-4 text-center">
                       <button
                         onClick={() => {
+                          if (isDayClosed) return;
                           const nextStatus = apt.estadoPago === 'pagado' ? 'pendiente' : 'pagado';
                           onUpdatePayment(apt.id, nextStatus, nextStatus === 'pagado' ? 'efectivo' : 'pendiente');
                         }}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                        disabled={isDayClosed}
+                        title={isDayClosed ? 'La caja de este día está cerrada' : undefined}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                           apt.estadoPago === 'pagado'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                             : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
@@ -431,6 +481,40 @@ export default function DailyFinancialSummary({
         appointments={appointments}
         summary={summary}
         patients={patients}
+      />
+
+      {/* Confirmación antes de cerrar la caja del día */}
+      <ConfirmModal
+        isOpen={isConfirmingCierre}
+        title="Realizar Cierre de Caja"
+        message={`¿Confirmás el cierre de caja del ${formatDatePretty(currentDate)}?`}
+        subMessage={`Total a cerrar: ${formatCurrency(summary.totalHonorariosPercibidos)}. A partir de este momento, los estados de turno y de pago de este día quedan bloqueados.`}
+        confirmText="Cerrar Caja"
+        cancelText="Cancelar"
+        isDestructive={false}
+        onConfirm={handleConfirmCierreCaja}
+        onCancel={() => setIsConfirmingCierre(false)}
+      />
+
+      {/* Confirmación antes de reabrir una caja ya cerrada */}
+      <ConfirmModal
+        isOpen={isConfirmingReopen}
+        title="Reabrir Caja"
+        message={`¿Reabrir la caja del ${formatDatePretty(currentDate)}?`}
+        subMessage="Vas a poder volver a modificar los estados de turno y de pago de este día."
+        confirmText="Reabrir"
+        cancelText="Cancelar"
+        isDestructive={false}
+        onConfirm={handleConfirmReopen}
+        onCancel={() => setIsConfirmingReopen(false)}
+      />
+
+      {/* Cartelito de Cierre de Caja: resumen compartible/descargable */}
+      <CierreCajaModal
+        isOpen={isCierreModalOpen}
+        onClose={() => setIsCierreModalOpen(false)}
+        date={currentDate}
+        summary={summary}
       />
     </div>
   );

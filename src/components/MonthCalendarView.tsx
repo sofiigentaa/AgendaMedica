@@ -502,16 +502,18 @@ export default function MonthCalendarView({
 
                 {/* Card Bottom Actions */}
                 <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectDate(dateStr);
-                      onGoToDailyView(dateStr);
-                    }}
-                    className="text-teal-700 hover:text-teal-900 font-bold hover:underline py-0.5"
-                  >
-                    Ver Día
-                  </button>
+                  {!isBlockedDay && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectDate(dateStr);
+                        onGoToDailyView(dateStr);
+                      }}
+                      className="text-teal-700 hover:text-teal-900 font-bold hover:underline py-0.5"
+                    >
+                      Ver Día
+                    </button>
+                  )}
 
                   {!holiday && isWorking && (
                     <button

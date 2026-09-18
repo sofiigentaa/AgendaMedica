@@ -55,6 +55,7 @@ interface CalendarViewProps {
   onSendReminder: (appointment: Appointment) => void;
   onOpenPrintModal?: () => void;
   onClearCancelledAppointments?: () => void | Promise<void>;
+  isDayClosed?: boolean;
 }
 
 export default function CalendarView({
@@ -72,7 +73,8 @@ export default function CalendarView({
   onUpdatePayment,
   onSendReminder,
   onOpenPrintModal,
-  onClearCancelledAppointments
+  onClearCancelledAppointments,
+  isDayClosed = false
 }: CalendarViewProps) {
   const [calendarMode, setCalendarMode] = useState<'dia' | 'mes'>('dia');
   const [searchTerm, setSearchTerm] = useState('');
@@ -766,7 +768,9 @@ export default function CalendarView({
                       <select
                         value={appt.estado}
                         onChange={(e) => onUpdateStatus(appt.id, e.target.value as AppointmentStatus)}
-                        className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] w-[150px] shadow-2xs ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+                        disabled={isDayClosed}
+                        title={isDayClosed ? 'La caja de este día está cerrada' : undefined}
+                        className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] w-[150px] shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
                       >
                         <option value="confirmado">Confirmado</option>
                         <option value="atendido">Atendido / Listo</option>
@@ -790,8 +794,9 @@ export default function CalendarView({
                                 appt.metodoPago && appt.metodoPago !== 'pendiente' ? appt.metodoPago : 'efectivo';
                               onUpdatePayment(appt.id, nextPayment, nextPayment === 'pagado' ? currentMethod : 'pendiente');
                             }}
-                            title="Cambiar el estado de pago, sin abrir el turno"
-                            className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] w-[170px] shadow-2xs ${
+                            disabled={isDayClosed}
+                            title={isDayClosed ? 'La caja de este día está cerrada' : 'Cambiar el estado de pago, sin abrir el turno'}
+                            className={`text-xs font-bold px-3 py-2 rounded-xl border focus:outline-none cursor-pointer min-h-[40px] w-[170px] shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed ${
                               appt.estadoPago === 'pagado'
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 : appt.estadoPago === 'facturado'

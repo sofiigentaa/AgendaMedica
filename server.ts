@@ -15,6 +15,7 @@ import { createAuthRouter, requireAuth } from './server/auth';
 import { createPatientsRouter } from './server/routes/patients';
 import { createAppointmentsRouter } from './server/routes/appointments';
 import { createHolidaysRouter } from './server/routes/holidays';
+import { createDailyClosuresRouter } from './server/routes/dailyClosures';
 import { createBackupsRouter } from './server/routes/backups';
 import { createPublicRouter } from './server/routes/public';
 import { createTestUtilsRouter } from './server/routes/testUtils';
@@ -66,6 +67,7 @@ app.use('/api/public', createPublicRouter());
 app.use('/api/patients', requireAuth, createPatientsRouter());
 app.use('/api/appointments', requireAuth, createAppointmentsRouter());
 app.use('/api/holidays', requireAuth, createHolidaysRouter());
+app.use('/api/daily-closures', requireAuth, createDailyClosuresRouter());
 app.use('/api/backups', requireAuth, createBackupsRouter());
 app.use('/api/demo', requireAuth, createDemoRouter());
 

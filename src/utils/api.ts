@@ -1,4 +1,4 @@
-import { Patient, Appointment, HolidayOrNonWorkingDay, AutoBackupConfig, BackupHistoryItem } from '../types';
+import { Patient, Appointment, HolidayOrNonWorkingDay, DailyClosure, AutoBackupConfig, BackupHistoryItem } from '../types';
 
 export class ApiError extends Error {}
 
@@ -124,6 +124,23 @@ export function saveHoliday(
 
 export function deleteHoliday(date: string): Promise<void> {
   return request(`/api/holidays/${date}`, { method: 'DELETE' });
+}
+
+// --- Daily Closures (Cierre de Caja) ---
+
+export function fetchDailyClosures(): Promise<DailyClosure[]> {
+  return request('/api/daily-closures');
+}
+
+export function closeDailyCaja(date: string, totalPercibido: number): Promise<DailyClosure> {
+  return request(`/api/daily-closures/${date}`, {
+    method: 'POST',
+    body: JSON.stringify({ totalPercibido })
+  });
+}
+
+export function reopenDailyCaja(date: string): Promise<void> {
+  return request(`/api/daily-closures/${date}`, { method: 'DELETE' });
 }
 
 // --- Backups ---

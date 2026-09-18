@@ -95,6 +95,15 @@ model Holiday {
   @@map("holidays")
 }
 
+model DailyClosure {
+  id              String   @id @default(cuid())
+  date            String   @unique
+  totalPercibido  Float
+  createdAt       DateTime @default(now())
+
+  @@map("daily_closures")
+}
+
 model BackupHistoryItem {
   id                String   @id @default(cuid())
   date              String

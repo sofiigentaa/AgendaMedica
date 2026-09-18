@@ -443,7 +443,7 @@ export function getInitialAppointments(): Appointment[] {
  * Computes daily summary for a specific date (YYYY-MM-DD).
  */
 export function computeDailySummary(appointments: Appointment[], date: string): DailySummary {
-  const dayAppts = appointments.filter((a) => a.fecha === date);
+  const dayAppts = appointments.filter((a) => a.fecha === date && !a.esBloqueo && a.tratamientoId !== 'no_dar');
 
   let totalEsperados = 0;
   let totalPercibidos = 0;
