@@ -336,9 +336,7 @@ export default function PrintDailyScheduleModal({
 
         {/* Modal Bottom Actions (Hidden in print) */}
         <div className="bg-slate-100 px-6 py-3 border-t border-slate-200 flex items-center justify-between print:hidden shrink-0">
-          <span className="text-xs text-slate-500">
-            Consejo: En el cuadro de diálogo de impresión, puedes elegir "Guardar como PDF".
-          </span>
+          <span />
           <button
             onClick={onClose}
             className="px-4 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"

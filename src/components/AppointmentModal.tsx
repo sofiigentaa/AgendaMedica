@@ -1209,7 +1209,7 @@ export default function AppointmentModal({
                         : 'Escribir Obra Social o Prepaga'}
                     </label>
                     {coberturaPreset === 'particular' ? (
-                      <div className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 font-medium">
+                      <div className="w-full text-xs px-3 py-2 rounded-lg border border-teal-200 bg-teal-50/50 text-teal-900 font-bold">
                         Particular (Sin Cobertura)
                       </div>
                     ) : coberturaPreset === 'la_segunda' ? (

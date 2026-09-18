@@ -250,7 +250,7 @@ export function executePrintDocument(
       </div>
       <div class="toolbar-actions">
         <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
-        <button class="btn btn-primary" onclick="window.print()">Imprimir / Guardar PDF</button>
+        <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
       </div>
     </div>
 
