@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { CheckCircle2, XCircle, CalendarClock, X, Loader2 } from 'lucide-react';
 import {
   Patient,
@@ -484,7 +484,8 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
   // No hay endpoint de creación masiva de turnos en el backend (a diferencia
   // de bulkCreatePatients), así que se guardan de a uno, secuencialmente, para
   // no saturar el servidor si la sincronización trae muchos turnos a la vez.
-  const handleSyncTurnos = async () => {
+  const handleSyncTurnos = async (silent = false) => {
+    if (isSyncingTurnos) return; // ya hay una sincronización en curso (manual o automática)
     setIsSyncingTurnos(true);
     try {
       const parsed = await fetchTurnosWorkbookFromGoogleSheets(TURNOS_GOOGLE_SHEETS_URL, patients);
@@ -576,16 +577,44 @@ function AdminApp({ onLogout }: { onLogout: () => void }) {
       }
       if (failedToSaveCount > 0) parts.push(`${failedToSaveCount} no se pudieron guardar`);
 
-      setAdminNotification({
-        message: parts.length > 0 ? parts.join(' • ') : 'No se encontraron turnos nuevos para sincronizar.',
-        type: savedOnes.length > 0 ? 'success' : 'danger'
-      });
+      // Las corridas automáticas en segundo plano (silent) no muestran cartel
+      // cuando no hay nada nuevo — solo si de verdad trajeron algo, para no
+      // interrumpir cada pocos minutos con un aviso vacío.
+      const hasMeaningfulChange = savedOnes.length > 0 || extendedCount > 0;
+      if (!silent || hasMeaningfulChange) {
+        setAdminNotification({
+          message: parts.length > 0 ? parts.join(' • ') : 'No se encontraron turnos nuevos para sincronizar.',
+          type: savedOnes.length > 0 ? 'success' : 'danger'
+        });
+      }
     } catch (err: any) {
       showError(err.message || 'No se pudo sincronizar el archivo de turnos.');
     } finally {
       setIsSyncingTurnos(false);
     }
   };
+
+  // Se usa un ref (no la función directamente) para que el intervalo de más
+  // abajo siempre llame a la versión más reciente de handleSyncTurnos —de
+  // lo contrario quedaría atada para siempre a los `patients`/`appointments`
+  // vacíos del primer render, ya que ese efecto solo se configura una vez.
+  const handleSyncTurnosRef = useRef(handleSyncTurnos);
+  useEffect(() => {
+    handleSyncTurnosRef.current = handleSyncTurnos;
+  });
+
+  // La planilla de Google Sheets se usa todos los días para cargar los
+  // turnos, así que en vez de depender de que alguien se acuerde de apretar
+  // "Actualizar Turnos", se sincroniza sola cada 5 minutos mientras la
+  // pestaña está abierta y visible. No muestra cartel cuando no trae nada
+  // nuevo (ver handleSyncTurnos) para no interrumpir cada pocos minutos.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      handleSyncTurnosRef.current(true);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // BUG-18: "Mantener" ahora persiste en el estado de App, no en un estado
   // local del componente que se pierde al cambiar de pestaña.
