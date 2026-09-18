@@ -139,7 +139,13 @@ export function createAppointmentsRouter(): Router {
       for (const appt of cancelled) {
         if (!appt.sourceSheetName || appt.sourceRowNumber == null || appt.sourceNameColumn == null) continue;
         try {
-          await writeCancelledMarkerToSheet(spreadsheetId, appt.sourceSheetName, appt.sourceRowNumber, appt.sourceNameColumn);
+          await writeCancelledMarkerToSheet(
+            spreadsheetId,
+            appt.sourceSheetName,
+            appt.sourceRowNumber,
+            appt.sourceNameColumn,
+            appt.pacienteNombre
+          );
           syncedToSheet++;
         } catch (err) {
           console.error('No se pudo marcar CANCELADO en Google Sheets para', appt.id, err);

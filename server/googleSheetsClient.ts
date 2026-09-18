@@ -32,16 +32,18 @@ function columnIndexToLetter(index: number): string {
 }
 
 /**
- * Escribe "CANCELADO" en la celda de nombre de paciente de la fila exacta de
+ * Marca como cancelada la celda de nombre de paciente de la fila exacta de
  * donde se importó un turno — usado por "Limpiar Turnos Cancelados" para que
- * el médico vea en la propia planilla que ese horario quedó liberado, en vez
- * de que la fila siga mostrando el nombre de alguien que ya no viene.
+ * el médico vea en la propia planilla que ese turno se canceló, sin perder de
+ * vista de quién era (mantiene el nombre y le agrega "- CANCELADO" al lado,
+ * en vez de reemplazarlo por solo esa palabra).
  */
 export async function writeCancelledMarkerToSheet(
   spreadsheetId: string,
   sheetName: string,
   rowNumber: number,
-  columnIndex: number
+  columnIndex: number,
+  pacienteNombre: string
 ): Promise<void> {
   const credentials = getServiceAccountCredentials();
   if (!credentials) {
@@ -57,11 +59,12 @@ export async function writeCancelledMarkerToSheet(
 
   const column = columnIndexToLetter(columnIndex);
   const range = `${sheetName}!${column}${rowNumber}`;
+  const value = pacienteNombre.trim() ? `${pacienteNombre.trim()} - CANCELADO` : 'CANCELADO';
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range,
     valueInputOption: 'RAW',
-    requestBody: { values: [['CANCELADO']] }
+    requestBody: { values: [[value]] }
   });
 }

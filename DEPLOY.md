@@ -64,7 +64,7 @@ Cualquier cambio a los modelos hay que reflejarlo a mano en **ambos** schemas (`
 
 ## Sincronizar cancelaciones a Google Sheets (opcional)
 
-Por defecto la sincronización con Google Sheets es de una sola vía (la hoja hacia la app, con "Actualizar Turnos"). Si además querés que "Limpiar Turnos Cancelados" escriba `CANCELADO` en la celda de la planilla de donde vino cada turno cancelado (en vez de solo borrarlo localmente), hace falta darle a la app permiso de **escritura** sobre esa hoja puntual:
+Por defecto la sincronización con Google Sheets es de una sola vía (la hoja hacia la app, con "Actualizar Turnos"). Si además querés que "Limpiar Turnos Cancelados" deje escrito `Nombre del Paciente - CANCELADO` en la celda de la planilla de donde vino cada turno cancelado (en vez de solo borrarlo localmente), hace falta darle a la app permiso de **escritura** sobre esa hoja puntual:
 
 1. Entrá a [console.cloud.google.com](https://console.cloud.google.com/) → creá un proyecto (o usá uno existente) → **APIs y servicios → Biblioteca** → buscá **Google Sheets API** → Habilitar.
 2. **APIs y servicios → Credenciales → + Crear credenciales → Cuenta de servicio**. Creála (no hace falta asignarle roles de proyecto).
