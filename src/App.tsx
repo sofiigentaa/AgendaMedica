@@ -92,7 +92,7 @@ function PatientActionScreen({
             ? 'El link ya no es válido. Contactanos si necesitás ayuda con tu turno.'
             : isConfirm
             ? 'Gracias por confirmar tu asistencia. Te esperamos.'
-            : 'Registramos la cancelación de tu turno. Nos comunicaremos para coordinar una nueva fecha si lo necesitás.'}
+            : 'Registramos la cancelación de tu turno.'}
         </p>
 
         {summary && (
