@@ -35,7 +35,7 @@ export const CANCEL_RESCHEDULE_PHONE = '+5493413516134';
 export function generateAppointmentReminder(
   appt: Appointment,
   clinicName: string = 'Estética Láser Rosario',
-  clinicAddress: string = 'Alvear 816 - Planta baja'
+  clinicAddress: string = 'Alvear - Planta baja'
 ): ReminderPayload {
   const patientName = appt.pacienteNombre || 'Paciente';
   const treatmentName = appt.tratamientoNombre || 'Consulta Médica';
