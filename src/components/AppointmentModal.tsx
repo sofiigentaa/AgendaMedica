@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Clock, User, DollarSign, Shield, FileText, CheckCircle, Sparkles, AlertTriangle, Phone, Ban, Info, Check, Trash2 } from 'lucide-react';
 import { Appointment, Patient, TreatmentType, PaymentStatus, PaymentMethod, AppointmentStatus, HolidayOrNonWorkingDay } from '../types';
 import { TREATMENTS, INSURANCES, INSURANCE_SUGGESTIONS, calculateEndTime, calculateDurationMinutes, getTreatmentById, formatCurrency, STATUS_LABELS } from '../data/treatments';
@@ -210,6 +210,17 @@ export default function AppointmentModal({
       setNumeroAfiliado(resolveNumeroAfiliado(selectedPat.obraSocial, selectedPat.numeroAfiliado));
     }
   };
+
+  // Al elegir el paciente en un turno nuevo, la vista baja sola a
+  // "Tratamiento Médico & Duración", que es lo siguiente a completar.
+  const treatmentSectionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isOpen || appointmentToEdit || !pacienteId) return;
+    const timer = setTimeout(() => {
+      treatmentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [pacienteId, isOpen, appointmentToEdit]);
 
   // Keep the search box showing the selected patient's name whenever the
   // dropdown isn't actively being used to search (e.g. on open, when editing
@@ -1033,7 +1044,7 @@ export default function AppointmentModal({
               </div>
 
               {/* Treatment Selection - Medical Treatments */}
-              <div className="space-y-1.5">
+              <div ref={treatmentSectionRef} className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-teal-600" />
