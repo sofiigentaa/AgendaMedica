@@ -91,6 +91,8 @@ export default function AppointmentModal({
     }
   };
 
+  const insuranceInputRef = useRef<HTMLInputElement>(null);
+
   const handleSelectPreset = (preset: 'particular' | 'la_segunda' | 'otra') => {
     setCoberturaPreset(preset);
     if (preset === 'particular') {
@@ -108,6 +110,9 @@ export default function AppointmentModal({
       if (obraSocial === 'Particular' || obraSocial === 'La Segunda' || !obraSocial) {
         setObraSocial('');
       }
+      // Solo se enfoca al tocar "Otra / Escribir": con autoFocus también saltaba
+      // al elegir un paciente con obra social y pisaba el scroll al tratamiento.
+      setTimeout(() => insuranceInputRef.current?.focus(), 0);
     }
   };
 
@@ -1237,7 +1242,7 @@ export default function AppointmentModal({
                           value={obraSocial}
                           onChange={(e) => setObraSocial(e.target.value)}
                           className="w-full text-xs px-3 py-2 rounded-lg border border-teal-400 bg-white font-semibold text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none shadow-xs"
-                          autoFocus={coberturaPreset === 'otra'}
+                          ref={insuranceInputRef}
                         />
                         <datalist id="appointment-insurance-suggestions">
                           {INSURANCE_SUGGESTIONS.filter((s) => s !== 'Particular' && s !== 'La Segunda').map((sugg) => (
