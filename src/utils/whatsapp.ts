@@ -30,12 +30,17 @@ export function cleanPhoneNumber(phone?: string): string {
   return clean;
 }
 
+// El celular subraya como link las fechas, horas y direcciones que detecta.
+// Un espacio de ancho cero entre los dígitos no se ve, pero corta esa detección.
+const ZWSP = '\u200B';
+const noAutoLink = (text: string) => text.replace(/\d+/g, (digits) => digits.split('').join(ZWSP));
+
 export const CANCEL_RESCHEDULE_PHONE = '+5493413516134';
 
 export function generateAppointmentReminder(
   appt: Appointment,
   clinicName: string = 'Estética Láser Rosario',
-  clinicAddress: string = 'Alvear - Planta baja'
+  clinicAddress: string = 'Alvear 816 - Planta baja'
 ): ReminderPayload {
   const patientName = appt.pacienteNombre || 'Paciente';
   const treatmentName = appt.tratamientoNombre || 'Consulta Médica';
@@ -51,11 +56,11 @@ export function generateAppointmentReminder(
   const messageText = `Hola *${patientName}*! 👋
 
 Te recordamos tu turno médico en *${clinicName}*:
-📅 *Fecha:* ${prettyDate}
-⏰ *Horario:* ${appt.horaInicio || ''} hs
+📅 *Fecha:* ${noAutoLink(prettyDate)}
+⏰ *Horario:* ${noAutoLink(appt.horaInicio || '')} hs
 🩺 *Tratamiento:* ${treatmentName}
 🏥 *Cobertura:* ${appt.obraSocial || 'Particular'}
-📍 *Dirección:* ${clinicAddress}
+📍 *Dirección:* ${noAutoLink(clinicAddress)}
 
 👉 *Para confirmar tu asistencia, respondé este mensaje con "CONFIRMO" o hacé clic aquí:*
 ${confirmLink ? confirmLink : 'Por favor responder "CONFIRMO"'}
