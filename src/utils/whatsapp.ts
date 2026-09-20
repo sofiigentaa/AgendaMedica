@@ -35,6 +35,13 @@ export function cleanPhoneNumber(phone?: string): string {
 const ZWSP = '\u200B';
 const noAutoLink = (text: string) => text.replace(/\d+/g, (digits) => digits.split('').join(ZWSP));
 
+// Para la dirección no alcanza con cortar los dígitos: el celular la reconoce
+// por el nombre de la calle. Se cambian a/e por letras cirílicas idénticas a la
+// vista, así "Alvear 816" se lee igual pero ya no se detecta como dirección.
+const CYRILLIC_LOOKALIKES: Record<string, string> = { A: '\u0410', a: '\u0430', e: '\u0435', o: '\u043E' };
+const noAutoLinkAddress = (text: string) =>
+  noAutoLink(text).replace(/[AaeEo]/g, (c) => CYRILLIC_LOOKALIKES[c] ?? c);
+
 export const CANCEL_RESCHEDULE_PHONE = '+5493413516134';
 
 export function generateAppointmentReminder(
@@ -60,7 +67,7 @@ Te recordamos tu turno médico en *${clinicName}*:
 ⏰ *Horario:* ${noAutoLink(appt.horaInicio || '')} hs
 🩺 *Tratamiento:* ${treatmentName}
 🏥 *Cobertura:* ${appt.obraSocial || 'Particular'}
-📍 *Dirección:* ${noAutoLink(clinicAddress)}
+📍 *Dirección:* ${noAutoLinkAddress(clinicAddress)}
 
 👉 *Para confirmar tu asistencia, respondé este mensaje con "CONFIRMO" o hacé clic aquí:*
 ${confirmLink ? confirmLink : 'Por favor responder "CONFIRMO"'}
