@@ -35,10 +35,6 @@ export function cleanPhoneNumber(phone?: string): string {
 const ZWSP = '\u200B';
 const noAutoLink = (text: string) => text.replace(/\d+/g, (digits) => digits.split('').join(ZWSP));
 
-// WhatsApp no convierte en link lo que va en formato monoespaciado (`...`),
-// así que el número de la dirección va así para que no quede subrayado.
-const monoNumbers = (text: string) => text.replace(/\d+/g, (digits) => '`' + digits + '`');
-
 export const CANCEL_RESCHEDULE_PHONE = '+5493413516134';
 
 export function generateAppointmentReminder(
@@ -64,7 +60,7 @@ Te recordamos tu turno médico en *${clinicName}*:
 ⏰ *Horario:* ${noAutoLink(appt.horaInicio || '')} hs
 🩺 *Tratamiento:* ${treatmentName}
 🏥 *Cobertura:* ${appt.obraSocial || 'Particular'}
-📍 *Dirección:* ${monoNumbers(clinicAddress)}
+📍 *Dirección:* ${noAutoLink(clinicAddress)}
 
 👉 *Para confirmar tu asistencia, respondé este mensaje con "CONFIRMO" o hacé clic aquí:*
 ${confirmLink ? confirmLink : 'Por favor responder "CONFIRMO"'}
