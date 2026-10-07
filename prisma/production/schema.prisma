@@ -1,5 +1,5 @@
 // Prisma schema for Agenda Médica — PRODUCTION (PostgreSQL). Local
-// development & tests use prisma/schema.prisma (SQLite) instead — see
+// development uses prisma/schema.prisma (SQLite) instead — see
 // DEPLOY.md. Keep the models below in sync with ../schema.prisma by hand;
 // Prisma can't switch a schema's datasource `provider` via an env var, so
 // these have to be two separate files. Migrations for this schema live in

@@ -18,7 +18,6 @@ import { createHolidaysRouter } from './server/routes/holidays';
 import { createDailyClosuresRouter } from './server/routes/dailyClosures';
 import { createBackupsRouter } from './server/routes/backups';
 import { createPublicRouter } from './server/routes/public';
-import { createTestUtilsRouter } from './server/routes/testUtils';
 import { createDemoRouter } from './server/routes/demo';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -70,14 +69,6 @@ app.use('/api/holidays', requireAuth, createHolidaysRouter());
 app.use('/api/daily-closures', requireAuth, createDailyClosuresRouter());
 app.use('/api/backups', requireAuth, createBackupsRouter());
 app.use('/api/demo', requireAuth, createDemoRouter());
-
-// 5. Test-only helper to reset the database between E2E test runs. Never
-// mounted in production, and additionally gated by a shared-secret header
-// (see server/routes/testUtils.ts) so it's never reachable there even if
-// NODE_ENV were somehow misconfigured.
-if (!isProduction) {
-  app.use('/api/test', createTestUtilsRouter());
-}
 
 async function startServer() {
   if (!isProduction) {

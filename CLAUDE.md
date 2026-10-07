@@ -16,7 +16,7 @@ Para ver un cambio al instante en vez de esperar a Render:
 
 ```bash
 cp .env.example .env
-# completar SESSION_SECRET, AUTH_PASSWORD_HASH (con `npm run hash-password -- "una-contraseña"`) y TEST_RESET_TOKEN
+# completar SESSION_SECRET, AUTH_PASSWORD_HASH (con `npm run hash-password -- "una-contraseña"`)
 npx prisma migrate dev --name init   # crea la base SQLite local (dev.db) y carga los datos de ejemplo
 npm run dev                          # levanta el server en http://localhost:3000
 ```
